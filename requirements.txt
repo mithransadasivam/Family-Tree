@@ -1,0 +1,14 @@
+asgiref==3.11.1
+certifi==2026.4.22
+charset-normalizer==3.4.7
+Django==6.0.4
+django-cors-headers==4.9.0
+djangorestframework==3.17.1
+djangorestframework_simplejwt==5.5.1
+idna==3.13
+mysqlclient==2.2.8
+PyJWT==2.12.1
+python-dotenv==1.2.2
+requests==2.33.1
+sqlparse==0.5.5
+urllib3==2.6.3
