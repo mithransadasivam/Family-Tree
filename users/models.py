@@ -1,7 +1,16 @@
-from django.db import models
+﻿from django.db import models
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 
 
-class User(models.Model):
+class UserManager(BaseUserManager):
+    def create_user(self, email, google_id, **extra_fields):
+        user = self.model(email=email, google_id=google_id, **extra_fields)
+        user.set_unusable_password()
+        user.save(using=self._db)
+        return user
+
+
+class User(AbstractBaseUser):
     google_id = models.CharField(max_length=255, unique=True)
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=100, blank=True)
@@ -12,6 +21,11 @@ class User(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = UserManager()
+
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['google_id']
 
     class Meta:
         db_table = 'users'

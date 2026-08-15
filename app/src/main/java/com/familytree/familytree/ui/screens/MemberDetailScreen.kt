@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -173,13 +176,30 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                     items(relationships) { rel ->
                         val otherId = if (rel.member_1 == memberId) rel.member_2 else rel.member_1
                         val other = allMembers.find { it.id == otherId }
-                        Card(colors = CardDefaults.cardColors(containerColor = Surface)) {
-                            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Surface),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Text("👤", fontSize = 24.sp)
                                 Spacer(Modifier.width(12.dp))
-                                Column {
+                                Column(Modifier.weight(1f)) {
                                     Text(other?.let { "${it.first_name} ${it.last_name}" } ?: "Unknown")
                                     Text(rel.relationship_type_name, color = Primary, fontSize = 11.sp)
+                                }
+                                IconButton(onClick = {
+                                    scope.launch {
+                                        repository.deleteRelationship(rel.id)
+                                        val relsResult = repository.getRelationships(member!!.tree)
+                                        if (relsResult.isSuccess) relationships = relsResult.getOrNull()
+                                            ?.filter { it.member_1 == memberId || it.member_2 == memberId }
+                                            ?: emptyList()
+                                    }
+                                }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete relationship", tint = Color.Red.copy(alpha = 0.7f))
                                 }
                             }
                         }
@@ -195,38 +215,70 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
         }
     }
 
-    LaunchedEffect(showAddRel, allMembers, relTypes) {
-        if (showAddRel && allMembers.isNotEmpty()) {
-            if (selectedMemberId == 0 || allMembers.none { it.id == selectedMemberId }) {
-                selectedMemberId = allMembers.first().id
-            }
-        }
-        if (showAddRel && relTypes.isNotEmpty()) {
-            if (selectedRelTypeId == 0 || relTypes.none { it.id == selectedRelTypeId }) {
-                selectedRelTypeId = relTypes.first().id
-            }
-        }
-    }
-
     if (showAddRel && allMembers.isNotEmpty() && relTypes.isNotEmpty()) {
+        if (selectedMemberId == 0) selectedMemberId = allMembers.first().id
+        if (selectedRelTypeId == 0) selectedRelTypeId = relTypes.first().id
+
+        val selectedOther = allMembers.find { it.id == selectedMemberId }
+        val selectedType = relTypes.find { it.id == selectedRelTypeId }
+
         AlertDialog(
             onDismissRequest = { showAddRel = false },
             title = { Text("Add Relationship") },
             text = {
                 Column {
-                    Text("Select Member", fontSize = 12.sp, color = TextHint)
+                    // Sentence preview
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F4F1)),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                    ) {
+                        Text(
+                            text = "${member?.first_name} is the ${selectedType?.type_name ?: "..."} of ${selectedOther?.first_name ?: "..."}",
+                            modifier = Modifier.padding(12.dp),
+                            fontSize = 14.sp,
+                            color = Color(0xFF2E5C51),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    Text("Select Other Member", fontSize = 12.sp, color = TextHint)
+                    Spacer(Modifier.height(4.dp))
                     allMembers.forEach { m ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = selectedMemberId == m.id, onClick = { selectedMemberId = m.id })
-                            Text("${m.first_name} ${m.last_name}")
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            RadioButton(
+                                selected = selectedMemberId == m.id,
+                                onClick = { selectedMemberId = m.id }
+                            )
+                            Text("${m.first_name} ${m.last_name}", fontSize = 14.sp)
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
+
+                    Spacer(Modifier.height(12.dp))
                     Text("Relationship Type", fontSize = 12.sp, color = TextHint)
-                    relTypes.take(8).forEach { type ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = selectedRelTypeId == type.id, onClick = { selectedRelTypeId = type.id })
-                            Text(type.type_name)
+                    Spacer(Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .heightIn(max = 200.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Column {
+                            relTypes.forEach { type ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    RadioButton(
+                                        selected = selectedRelTypeId == type.id,
+                                        onClick = { selectedRelTypeId = type.id }
+                                    )
+                                    Column {
+                                        Text(type.type_name, fontSize = 14.sp)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -244,13 +296,17 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                                 )
                             )
                             val relsResult = repository.getRelationships(m.tree)
-                            if (relsResult.isSuccess) relationships = relsResult.getOrNull()?.filter { it.member_1 == memberId || it.member_2 == memberId } ?: emptyList()
+                            if (relsResult.isSuccess) relationships = relsResult.getOrNull()
+                                ?.filter { it.member_1 == memberId || it.member_2 == memberId }
+                                ?: emptyList()
                             showAddRel = false
                         }
                     }
                 }) { Text("Add") }
             },
-            dismissButton = { TextButton(onClick = { showAddRel = false }) { Text("Cancel") } }
+            dismissButton = {
+                TextButton(onClick = { showAddRel = false }) { Text("Cancel") }
+            }
         )
     }
 }

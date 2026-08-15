@@ -111,6 +111,14 @@ class AppRepository(private val context: Context) {
         } catch (e: Exception) { Result.failure(e) }
     }
 
+    suspend fun deleteRelationship(relId: Int): Result<Unit> {
+        return try {
+            val response = api.deleteRelationship(relId)
+            if (response.isSuccessful) Result.success(Unit)
+            else Result.failure(Exception("Failed: ${response.code()}"))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
     suspend fun getRelationshipTypes(): Result<List<RelationshipType>> {
         return try {
             val response = api.getRelationshipTypes()

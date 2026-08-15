@@ -160,14 +160,20 @@ fun HomeScreen(navController: NavController) {
                 },
                 confirmButton = {
                     Button(onClick = {
-                        scope.launch {
-                            val result = repository.createFamilyTree(newTreeName, newTreeDesc)
-                            if (result.isSuccess) {
-                                trees = trees + result.getOrNull()!!
-                                showCreateDialog = false
-                                newTreeName = ""
-                                newTreeDesc = ""
+                        if (newTreeName.isNotBlank()) {
+                            scope.launch {
+                                val result = repository.createFamilyTree(newTreeName, newTreeDesc)
+                                if (result.isSuccess) {
+                                    trees = trees + result.getOrNull()!!
+                                    showCreateDialog = false
+                                    newTreeName = ""
+                                    newTreeDesc = ""
+                                } else {
+                                    newTreeName = "Error: ${result.exceptionOrNull()?.message}"
+                                }
                             }
+                        } else {
+                            newTreeName = ""
                         }
                     }) { Text("Create") }
                 },
