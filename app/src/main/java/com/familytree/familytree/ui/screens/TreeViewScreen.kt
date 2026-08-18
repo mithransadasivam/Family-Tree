@@ -43,18 +43,12 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
     var newLastName by remember { mutableStateOf("") }
     var newPhone by remember { mutableStateOf("") }
     var newBirthPlace by remember { mutableStateOf("") }
-    var focusedMemberId by remember { mutableStateOf<Int?>(null) }
 
     fun loadData() {
         scope.launch {
             val membersResult = repository.getFamilyMembers(treeId)
             val relsResult = repository.getRelationships(treeId)
-            if (membersResult.isSuccess) {
-                members = membersResult.getOrNull() ?: emptyList()
-                if (focusedMemberId == null && members.isNotEmpty()) {
-                    focusedMemberId = members.first().id
-                }
-            }
+            if (membersResult.isSuccess) members = membersResult.getOrNull() ?: emptyList()
             if (relsResult.isSuccess) relationships = relsResult.getOrNull() ?: emptyList()
             isLoading = false
         }
@@ -98,16 +92,11 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
                     ) { Text("+ Add Family Member") }
                 }
             } else {
-                AncestryTreeCanvas(
+                FamilyTreeCanvas(
                     members = members,
                     relationships = relationships,
-                    focusedMemberId = focusedMemberId ?: members.first().id,
                     onMemberClick = { member ->
-                        focusedMemberId = member.id
                         navController.navigate(Screen.MemberDetail.createRoute(member.id))
-                    },
-                    onMemberFocus = { member ->
-                        focusedMemberId = member.id
                     }
                 )
                 Button(
@@ -171,12 +160,10 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
 }
 
 @Composable
-fun AncestryTreeCanvas(
+fun FamilyTreeCanvas(
     members: List<FamilyMember>,
     relationships: List<Relationship>,
-    focusedMemberId: Int,
-    onMemberClick: (FamilyMember) -> Unit,
-    onMemberFocus: (FamilyMember) -> Unit
+    onMemberClick: (FamilyMember) -> Unit
 ) {
     val nodeRadius = 55f
     val hSpacing = 220f
@@ -185,36 +172,20 @@ fun AncestryTreeCanvas(
     val parentRelTypes = listOf(
         "Father", "Mother", "Grandfather", "Grandmother",
         "Great Grandfather", "Great Grandmother",
-        "Stepfather", "Stepmother", "Guardian",
-        "Adopted Father", "Adopted Mother"
+        "Stepfather", "Stepmother", "Guardian"
     )
-
     val childRelTypes = listOf(
         "Son", "Daughter", "Grandson", "Granddaughter",
         "Great Grandson", "Great Granddaughter",
         "Stepson", "Stepdaughter", "Step Son", "Step Daughter",
         "Adopted Son", "Adopted Daughter"
     )
-
     val spouseRelTypes = listOf(
-        "Spouse", "Husband", "Wife", "Partner",
-        "Fiance", "Fiancee"
+        "Spouse", "Husband", "Wife", "Partner", "Fiance", "Fiancee"
     )
 
-    val parentOf = remember(members, relationships) {
-        val map = mutableMapOf<Int, MutableList<Int>>()
-        relationships.forEach { rel ->
-            if (rel.relationship_type_name in parentRelTypes) {
-                map.getOrPut(rel.member_2) { mutableListOf() }.add(rel.member_1)
-            }
-            if (rel.relationship_type_name in childRelTypes) {
-                map.getOrPut(rel.member_1) { mutableListOf() }.add(rel.member_2)
-            }
-        }
-        map
-    }
-
-    val childOf = remember(members, relationships) {
+    // Build children map for layout
+    val childrenOf = remember(members, relationships) {
         val map = mutableMapOf<Int, MutableList<Int>>()
         relationships.forEach { rel ->
             if (rel.relationship_type_name in parentRelTypes) {
@@ -227,88 +198,50 @@ fun AncestryTreeCanvas(
         map
     }
 
-    val spouseOf = remember(members, relationships) {
-        val map = mutableMapOf<Int, MutableList<Int>>()
+    // Assign generations using BFS
+    val generations = remember(members, relationships) {
+        val hasParent = mutableSetOf<Int>()
         relationships.forEach { rel ->
-            if (rel.relationship_type_name in spouseRelTypes) {
-                map.getOrPut(rel.member_1) { mutableListOf() }.add(rel.member_2)
-                map.getOrPut(rel.member_2) { mutableListOf() }.add(rel.member_1)
+            if (rel.relationship_type_name in parentRelTypes) hasParent.add(rel.member_2)
+            if (rel.relationship_type_name in childRelTypes) hasParent.add(rel.member_1)
+        }
+        val roots = members.filter { it.id !in hasParent }.map { it.id }
+        val gen = mutableMapOf<Int, Int>()
+        val queue = ArrayDeque<Int>()
+        roots.forEach { id -> gen[id] = 0; queue.add(id) }
+        while (queue.isNotEmpty()) {
+            val cur = queue.removeFirst()
+            childrenOf[cur]?.forEach { childId ->
+                if (childId !in gen) {
+                    gen[childId] = (gen[cur] ?: 0) + 1
+                    queue.add(childId)
+                }
             }
         }
-        map
+        members.forEach { m -> if (m.id !in gen) gen[m.id] = 0 }
+        gen
     }
 
-    val visibleMembers = remember(focusedMemberId, members, relationships) {
-        val visible = mutableSetOf<Int>()
-        visible.add(focusedMemberId)
-        // Parents
-        childOf[focusedMemberId]?.forEach { visible.add(it) }
-        // Grandparents
-        childOf[focusedMemberId]?.forEach { parentId ->
-            childOf[parentId]?.forEach { visible.add(it) }
-        }
-        // Children
-        parentOf[focusedMemberId]?.forEach { visible.add(it) }
-        // Grandchildren
-        parentOf[focusedMemberId]?.forEach { childId ->
-            parentOf[childId]?.forEach { visible.add(it) }
-        }
-        // Spouses of all visible
-        visible.toList().forEach { id ->
-            spouseOf[id]?.forEach { visible.add(it) }
-        }
-        members.filter { it.id in visible }
-    }
-
-    val positions = remember(focusedMemberId, visibleMembers, relationships) {
+    // Calculate positions - clean grid by generation
+    val positions = remember(members, relationships) {
         val map = mutableMapOf<Int, Offset>()
-        val centerX = 600f
-        val focusedY = 500f
+        val byGen = members.groupBy { generations[it.id] ?: 0 }
+        val canvasWidth = ((byGen.values.maxOfOrNull { it.size } ?: 1) + 1) * hSpacing
 
-        map[focusedMemberId] = Offset(centerX, focusedY)
-
-        // Spouses next to focused
-        spouseOf[focusedMemberId]?.forEachIndexed { i, spouseId ->
-            map[spouseId] = Offset(centerX + hSpacing * (i + 1), focusedY)
-        }
-
-        // Parents above
-        val parents = childOf[focusedMemberId] ?: emptyList()
-        val parentStartX = centerX - (parents.size - 1) * hSpacing / 2f
-        parents.forEachIndexed { i, parentId ->
-            val parentX = parentStartX + i * hSpacing
-            map[parentId] = Offset(parentX, focusedY - vSpacing)
-            // Grandparents
-            val grandparents = childOf[parentId] ?: emptyList()
-            val gpStartX = parentX - (grandparents.size - 1) * hSpacing / 2f
-            grandparents.forEachIndexed { j, gpId ->
-                if (gpId !in map) map[gpId] = Offset(gpStartX + j * hSpacing, focusedY - vSpacing * 2)
-            }
-            // Parent spouses
-            spouseOf[parentId]?.forEach { spouseId ->
-                if (spouseId !in map) map[spouseId] = Offset(parentX + hSpacing, focusedY - vSpacing)
+        byGen.forEach { (gen, genMembers) ->
+            val totalWidth = genMembers.size * hSpacing
+            val startX = (canvasWidth - totalWidth) / 2f + hSpacing / 2f
+            genMembers.forEachIndexed { index, member ->
+                map[member.id] = Offset(
+                    x = startX + index * hSpacing,
+                    y = 150f + gen * vSpacing
+                )
             }
         }
-
-        // Children below
-        val children = parentOf[focusedMemberId] ?: emptyList()
-        val childStartX = centerX - (children.size - 1) * hSpacing / 2f
-        children.forEachIndexed { i, childId ->
-            val childX = childStartX + i * hSpacing
-            if (childId !in map) map[childId] = Offset(childX, focusedY + vSpacing)
-            // Grandchildren
-            val grandchildren = parentOf[childId] ?: emptyList()
-            val gcStartX = childX - (grandchildren.size - 1) * hSpacing / 2f
-            grandchildren.forEachIndexed { j, gcId ->
-                if (gcId !in map) map[gcId] = Offset(gcStartX + j * hSpacing, focusedY + vSpacing * 2)
-            }
-        }
-
         map
     }
 
-    // Pinch to zoom and pan
-    var scale by remember { mutableStateOf(1f) }
+    var scale by remember { mutableStateOf(0.85f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     val transformState = rememberTransformableState { zoomChange, panChange, _ ->
         scale = (scale * zoomChange).coerceIn(0.3f, 3f)
@@ -323,29 +256,31 @@ fun AncestryTreeCanvas(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(visibleMembers, scale, offset) {
+                .pointerInput(members, positions, scale, offset) {
                     detectTapGestures { tapOffset ->
-                        // Convert screen coordinates to canvas coordinates
+                        // Account for scale and offset transformation
                         val canvasX = (tapOffset.x - offset.x) / scale
                         val canvasY = (tapOffset.y - offset.y) / scale
 
-                        var tapped = false
-                        visibleMembers.forEach { member ->
-                            if (tapped) return@forEach
+                        // Find the closest member to the tap
+                        var closestMember: FamilyMember? = null
+                        var closestDistance = Float.MAX_VALUE
+
+                        members.forEach { member ->
                             val pos = positions[member.id] ?: return@forEach
-                            val radius = if (member.id == focusedMemberId) nodeRadius + 8f else nodeRadius
                             val distance = sqrt(
                                 (canvasX - pos.x) * (canvasX - pos.x) +
                                 (canvasY - pos.y) * (canvasY - pos.y)
                             )
-                            if (distance < radius + 20f) {
-                                tapped = true
-                                if (member.id == focusedMemberId) {
-                                    onMemberClick(member)
-                                } else {
-                                    onMemberFocus(member)
-                                }
+                            if (distance < closestDistance) {
+                                closestDistance = distance
+                                closestMember = member
                             }
+                        }
+
+                        // Only trigger if tap is within node radius
+                        if (closestDistance < nodeRadius + 25f) {
+                            closestMember?.let { onMemberClick(it) }
                         }
                     }
                 }
@@ -356,7 +291,7 @@ fun AncestryTreeCanvas(
                     translationY = offset.y
                 }
         ) {
-            // Draw lines
+            // Draw relationship lines first
             relationships.forEach { rel ->
                 val p1 = positions[rel.member_1] ?: return@forEach
                 val p2 = positions[rel.member_2] ?: return@forEach
@@ -366,14 +301,15 @@ fun AncestryTreeCanvas(
                     start = p1,
                     end = p2,
                     strokeWidth = 2.5f,
-                    pathEffect = if (isSpouse) androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 5f)) else null
+                    pathEffect = if (isSpouse) androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                        floatArrayOf(10f, 5f)
+                    ) else null
                 )
             }
 
-            // Draw nodes
-            visibleMembers.forEach { member ->
+            // Draw nodes on top
+            members.forEach { member ->
                 val pos = positions[member.id] ?: return@forEach
-                val isFocused = member.id == focusedMemberId
 
                 // Shadow
                 drawCircle(
@@ -382,69 +318,40 @@ fun AncestryTreeCanvas(
                     center = pos.copy(y = pos.y + 4f)
                 )
 
-                // Circle - focused member is slightly larger and brighter
-                drawCircle(
-                    color = if (isFocused) Color(0xFF2E5C51) else Color(0xFF4A7C6F),
-                    radius = if (isFocused) nodeRadius + 8f else nodeRadius,
-                    center = pos
-                )
+                // Circle
+                drawCircle(color = Color(0xFF4A7C6F), radius = nodeRadius, center = pos)
                 drawCircle(
                     color = Color.White,
-                    radius = if (isFocused) nodeRadius + 8f else nodeRadius,
+                    radius = nodeRadius,
                     center = pos,
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = if (isFocused) 4f else 2.5f)
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3f)
                 )
 
-                // Initial
+                // Initial inside circle
                 drawContext.canvas.nativeCanvas.drawText(
                     member.first_name.take(1).uppercase(),
                     pos.x,
                     pos.y + 12f,
                     android.graphics.Paint().apply {
                         color = android.graphics.Color.WHITE
-                        textSize = if (isFocused) 42f else 36f
+                        textSize = 36f
                         textAlign = android.graphics.Paint.Align.CENTER
                         typeface = android.graphics.Typeface.DEFAULT_BOLD
                     }
                 )
 
-                // Name label
+                // Name below circle
                 drawContext.canvas.nativeCanvas.drawText(
                     member.first_name,
                     pos.x,
-                    pos.y + (if (isFocused) nodeRadius + 20f else nodeRadius + 16f) + 16f,
+                    pos.y + nodeRadius + 30f,
                     android.graphics.Paint().apply {
                         color = android.graphics.Color.parseColor("#1C2826")
-                        textSize = if (isFocused) 30f else 26f
+                        textSize = 28f
                         textAlign = android.graphics.Paint.Align.CENTER
-                        typeface = if (isFocused) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
+                        typeface = android.graphics.Typeface.DEFAULT
                     }
                 )
-
-                // "Tap to view" hint for focused member
-                if (isFocused) {
-                    drawContext.canvas.nativeCanvas.drawText(
-                        "tap to view profile",
-                        pos.x,
-                        pos.y + nodeRadius + 52f,
-                        android.graphics.Paint().apply {
-                            color = android.graphics.Color.parseColor("#8A9B97")
-                            textSize = 22f
-                            textAlign = android.graphics.Paint.Align.CENTER
-                        }
-                    )
-                }
-            }
-        }
-
-        // Generation labels
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(16.dp)
-        ) {
-            if (childOf[focusedMemberId]?.isNotEmpty() == true) {
-                Text("👆 Tap to explore ancestors", color = TextHint, fontSize = androidx.compose.ui.unit.TextUnit.Unspecified)
             }
         }
     }
