@@ -23,9 +23,11 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
@@ -185,58 +187,87 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
     }
 }
 
-@Composable
-fun FamilyTreeCanvas(
+// ---------------------------------------------------------------------------------------
+// Relationship classification
+// ---------------------------------------------------------------------------------------
+
+private val spouseRelTypes = setOf("Spouse", "Husband", "Wife", "Partner", "Fiance", "Fiancee")
+
+// relationship_type_name describes what member_1 IS to member_2 (e.g. "Father" means
+// member_1 is member_2's father).
+private val bioParentTypes = setOf("Father", "Mother", "Grandfather", "Grandmother")
+private val bioChildTypes = setOf("Son", "Daughter", "Grandson", "Granddaughter")
+private val stepParentTypes = setOf("Stepfather", "Stepmother", "Step Father", "Step Mother")
+private val stepChildTypes = setOf("Stepson", "Stepdaughter", "Step Son", "Step Daughter")
+private val stepSiblingTypes = setOf("Step Brother", "Step Sister")
+private val adoptedChildTypes = setOf("Adopted Son", "Adopted Daughter")
+private val adoptedSiblingTypes = setOf("Adopted Brother", "Adopted Sister")
+
+private enum class RelCategory { BIO, STEP, ADOPTED }
+
+private data class ParentEdge(val parentId: Int, val childId: Int, val category: RelCategory)
+
+private class TreeUnit(val id: String, val partners: List<Int>, val children: List<Int>)
+
+private sealed class RenderNode {
+    var width: Float = 0f
+}
+private class UnitNode(val unit: TreeUnit, val childNodes: List<RenderNode>) : RenderNode()
+private class LeafNode(val personId: Int) : RenderNode()
+
+private class TreeLayoutResult(
+    val positions: Map<Int, Offset>,
+    val genOfPerson: Map<Int, Int>,
+    val units: List<TreeUnit>,
+    val couples: List<Pair<Int, Int>>,
+    val siblingLines: List<Triple<Int, Int, RelCategory>>,
+    val childCategory: Map<Int, RelCategory>
+)
+
+// ---------------------------------------------------------------------------------------
+// Layout engine - builds "family units" (a couple, or a single parent, plus their children),
+// starts from the oldest generation (people with no parents in the tree) and recursively
+// positions each unit's children centered underneath it, using subtree-width calculation so
+// nothing overlaps. Each person is placed exactly once.
+// ---------------------------------------------------------------------------------------
+
+private fun buildTreeLayout(
     members: List<FamilyMember>,
     relationships: List<Relationship>,
-    scale: Float,
-    onScaleChange: (Float) -> Unit,
-    offset: Offset,
-    onOffsetChange: (Offset) -> Unit,
-    onMemberClick: (FamilyMember) -> Unit
-) {
-    val density = LocalDensity.current
-    val cardWidth = with(density) { 190.dp.toPx() }
-    val cardHeight = with(density) { 120.dp.toPx() }
-    val hSpacing = with(density) { 260.dp.toPx() }
-    val vSpacing = with(density) { 260.dp.toPx() }
-    val gridSpacing = with(density) { 40.dp.toPx() }
-    val nameTextSize = with(density) { 15.dp.toPx() }
-    val dateTextSize = with(density) { 11.dp.toPx() }
-    val cardTextPadding = with(density) { 16.dp.toPx() }
-
-    val parentRelTypes = listOf(
-        "Father", "Mother", "Grandfather", "Grandmother",
-        "Great Grandfather", "Great Grandmother",
-        "Stepfather", "Stepmother", "Guardian"
-    )
-    val childRelTypes = listOf(
-        "Son", "Daughter", "Grandson", "Granddaughter",
-        "Great Grandson", "Great Granddaughter",
-        "Stepson", "Stepdaughter", "Step Son", "Step Daughter",
-        "Adopted Son", "Adopted Daughter"
-    )
-    val spouseRelTypes = listOf(
-        "Spouse", "Husband", "Wife", "Partner", "Fiance", "Fiancee"
-    )
-
-    // Build children map for layout
-    val childrenOf = remember(members, relationships) {
-        val map = mutableMapOf<Int, MutableList<Int>>()
-        relationships.forEach { rel ->
-            if (rel.relationship_type_name in parentRelTypes) {
-                map.getOrPut(rel.member_1) { mutableListOf() }.add(rel.member_2)
-            }
-            if (rel.relationship_type_name in childRelTypes) {
-                map.getOrPut(rel.member_2) { mutableListOf() }.add(rel.member_1)
-            }
+    cardWidth: Float,
+    spouseGap: Float,
+    siblingGap: Float,
+    vSpacing: Float,
+    treeGap: Float,
+    topMargin: Float
+): TreeLayoutResult {
+    val parentEdges = mutableListOf<ParentEdge>()
+    relationships.forEach { rel ->
+        val name = rel.relationship_type_name
+        when {
+            name in bioParentTypes -> parentEdges += ParentEdge(rel.member_1, rel.member_2, RelCategory.BIO)
+            name in bioChildTypes -> parentEdges += ParentEdge(rel.member_2, rel.member_1, RelCategory.BIO)
+            name in stepParentTypes -> parentEdges += ParentEdge(rel.member_1, rel.member_2, RelCategory.STEP)
+            name in stepChildTypes -> parentEdges += ParentEdge(rel.member_2, rel.member_1, RelCategory.STEP)
+            name in adoptedChildTypes -> parentEdges += ParentEdge(rel.member_2, rel.member_1, RelCategory.ADOPTED)
         }
-        map
     }
 
-    // Distinct spouse couples, used to draw one shared parent-child bus per couple
-    // instead of a separate line from each individual parent
-    val couples = remember(members, relationships) {
+    val childrenOf = parentEdges.groupBy { it.parentId }.mapValues { e -> e.value.map { it.childId }.distinct() }
+
+    // Best relationship category found for each child (bio > step > adopted), used to style
+    // that child's incoming connector branch.
+    val childCategory = mutableMapOf<Int, RelCategory>()
+    val priority = mapOf(RelCategory.BIO to 3, RelCategory.STEP to 2, RelCategory.ADOPTED to 1)
+    parentEdges.forEach { e ->
+        val existing = childCategory[e.childId]
+        if (existing == null || (priority[e.category] ?: 0) > (priority[existing] ?: 0)) {
+            childCategory[e.childId] = e.category
+        }
+    }
+
+    // Distinct spouse couples.
+    val couples = run {
         val seen = mutableSetOf<Pair<Int, Int>>()
         val list = mutableListOf<Pair<Int, Int>>()
         relationships.forEach { rel ->
@@ -248,48 +279,185 @@ fun FamilyTreeCanvas(
         list
     }
 
-    // Assign generations using BFS
-    val generations = remember(members, relationships) {
-        val hasParent = mutableSetOf<Int>()
+    // Step/adopted sibling relationships are not parent-child edges (they don't drive layout),
+    // but they still get a direct dashed/dotted connector drawn between the two cards.
+    val siblingLines = run {
+        val seen = mutableSetOf<Pair<Int, Int>>()
+        val list = mutableListOf<Triple<Int, Int, RelCategory>>()
         relationships.forEach { rel ->
-            if (rel.relationship_type_name in parentRelTypes) hasParent.add(rel.member_2)
-            if (rel.relationship_type_name in childRelTypes) hasParent.add(rel.member_1)
+            val cat = when (rel.relationship_type_name) {
+                in stepSiblingTypes -> RelCategory.STEP
+                in adoptedSiblingTypes -> RelCategory.ADOPTED
+                else -> null
+            } ?: return@forEach
+            val pair = minOf(rel.member_1, rel.member_2) to maxOf(rel.member_1, rel.member_2)
+            if (seen.add(pair)) list.add(Triple(pair.first, pair.second, cat))
         }
-        val roots = members.filter { it.id !in hasParent }.map { it.id }
-        val gen = mutableMapOf<Int, Int>()
-        val queue = ArrayDeque<Int>()
-        roots.forEach { id -> gen[id] = 0; queue.add(id) }
-        while (queue.isNotEmpty()) {
-            val cur = queue.removeFirst()
-            childrenOf[cur]?.forEach { childId ->
-                if (childId !in gen) {
-                    gen[childId] = (gen[cur] ?: 0) + 1
-                    queue.add(childId)
+        list
+    }
+
+    // Build family units. Every spouse couple becomes a unit (so the two cards render
+    // together even if childless); any remaining unpartnered parent with children becomes a
+    // solo unit. Each child is claimed by exactly one unit (first match wins) so nobody is
+    // ever positioned - or drawn - twice.
+    val assignedChildren = mutableSetOf<Int>()
+    val partneredPersons = mutableSetOf<Int>()
+    val unitsList = mutableListOf<TreeUnit>()
+    val headUnitOfPerson = mutableMapOf<Int, String>()
+
+    couples.forEach { (a, b) ->
+        val kids = (childrenOf[a].orEmpty() + childrenOf[b].orEmpty()).distinct().filter { it !in assignedChildren }
+        val id = "u_${a}_$b"
+        unitsList += TreeUnit(id, listOf(a, b), kids)
+        headUnitOfPerson[a] = id
+        headUnitOfPerson[b] = id
+        assignedChildren += kids
+        partneredPersons += a
+        partneredPersons += b
+    }
+    members.forEach { m ->
+        if (m.id in partneredPersons) return@forEach
+        val kids = childrenOf[m.id].orEmpty().filter { it !in assignedChildren }
+        if (kids.isNotEmpty()) {
+            val id = "u_solo_${m.id}"
+            unitsList += TreeUnit(id, listOf(m.id), kids)
+            headUnitOfPerson[m.id] = id
+            assignedChildren += kids
+        }
+    }
+
+    val parentUnitOfChild = mutableMapOf<Int, String>()
+    unitsList.forEach { u -> u.children.forEach { childId -> parentUnitOfChild[childId] = u.id } }
+
+    // Root units: couples/solo-parents whose partners aren't anyone's child in the tree -
+    // i.e. the oldest known generation for that branch.
+    val rootUnits = unitsList.filter { u -> u.partners.none { it in parentUnitOfChild } }
+
+    val builtUnitIds = mutableSetOf<String>()
+    val renderedIds = mutableSetOf<Int>()
+
+    fun buildNode(personId: Int): RenderNode {
+        val unitId = headUnitOfPerson[personId]
+        if (unitId != null && unitId !in builtUnitIds) {
+            builtUnitIds += unitId
+            val unit = unitsList.first { it.id == unitId }
+            unit.partners.forEach { renderedIds += it }
+            val childNodes = unit.children.map { buildNode(it) }
+            return UnitNode(unit, childNodes)
+        }
+        renderedIds += personId
+        return LeafNode(personId)
+    }
+
+    val forest = mutableListOf<RenderNode>()
+    rootUnits.forEach { u ->
+        if (u.id !in builtUnitIds) {
+            forest += buildNode(u.partners.first())
+        }
+    }
+    // Anyone left over (isolated individuals with no recorded relationships at all) still
+    // needs to appear on the tree exactly once.
+    members.forEach { m ->
+        if (m.id !in renderedIds) {
+            forest += buildNode(m.id)
+        }
+    }
+
+    fun computeWidth(node: RenderNode): Float {
+        val w = when (node) {
+            is UnitNode -> {
+                val ownWidth = if (node.unit.partners.size == 2) 2 * cardWidth + spouseGap else cardWidth
+                if (node.childNodes.isEmpty()) {
+                    ownWidth
+                } else {
+                    val childrenWidth = node.childNodes.sumOf { computeWidth(it).toDouble() }.toFloat() +
+                        (node.childNodes.size - 1) * siblingGap
+                    maxOf(ownWidth, childrenWidth)
                 }
             }
+            is LeafNode -> cardWidth
         }
-        members.forEach { m -> if (m.id !in gen) gen[m.id] = 0 }
-        gen
+        node.width = w
+        return w
     }
+    forest.forEach { computeWidth(it) }
 
-    // Calculate positions - clean grid by generation
-    val positions = remember(members, relationships) {
-        val map = mutableMapOf<Int, Offset>()
-        val byGen = members.groupBy { generations[it.id] ?: 0 }
-        val canvasWidth = ((byGen.values.maxOfOrNull { it.size } ?: 1) + 1) * hSpacing
+    val positions = mutableMapOf<Int, Offset>()
+    val genOfPerson = mutableMapOf<Int, Int>()
 
-        byGen.forEach { (gen, genMembers) ->
-            val totalWidth = genMembers.size * hSpacing
-            val startX = (canvasWidth - totalWidth) / 2f + hSpacing / 2f
-            genMembers.forEachIndexed { index, member ->
-                map[member.id] = Offset(
-                    x = startX + index * hSpacing,
-                    y = 150f + gen * vSpacing
-                )
+    fun place(node: RenderNode, leftEdge: Float, depth: Int) {
+        val centerX = leftEdge + node.width / 2f
+        val y = topMargin + depth * vSpacing
+        when (node) {
+            is UnitNode -> {
+                if (node.unit.partners.size == 2) {
+                    positions[node.unit.partners[0]] = Offset(centerX - (cardWidth + spouseGap) / 2f, y)
+                    positions[node.unit.partners[1]] = Offset(centerX + (cardWidth + spouseGap) / 2f, y)
+                } else {
+                    positions[node.unit.partners[0]] = Offset(centerX, y)
+                }
+                node.unit.partners.forEach { genOfPerson[it] = depth }
+                if (node.childNodes.isNotEmpty()) {
+                    val totalChildWidth = node.childNodes.sumOf { it.width.toDouble() }.toFloat() +
+                        (node.childNodes.size - 1) * siblingGap
+                    var cursor = centerX - totalChildWidth / 2f
+                    node.childNodes.forEach { child ->
+                        place(child, cursor, depth + 1)
+                        cursor += child.width + siblingGap
+                    }
+                }
+            }
+            is LeafNode -> {
+                positions[node.personId] = Offset(centerX, y)
+                genOfPerson[node.personId] = depth
             }
         }
-        map
     }
+
+    var cursor = 0f
+    forest.forEach { root ->
+        place(root, cursor, 0)
+        cursor += root.width + treeGap
+    }
+
+    return TreeLayoutResult(positions, genOfPerson, unitsList, couples, siblingLines, childCategory)
+}
+
+private fun personBorderColor(personId: Int, layout: TreeLayoutResult): Color {
+    if (personId in layout.childCategory) return Color(0xFF4A7C6F)
+    val inCouple = layout.couples.any { it.first == personId || it.second == personId }
+    return if (inCouple) Color(0xFFD4956A) else Color(0xFF9AA6A3)
+}
+
+@Composable
+fun FamilyTreeCanvas(
+    members: List<FamilyMember>,
+    relationships: List<Relationship>,
+    scale: Float,
+    onScaleChange: (Float) -> Unit,
+    offset: Offset,
+    onOffsetChange: (Offset) -> Unit,
+    onMemberClick: (FamilyMember) -> Unit
+) {
+    val density = LocalDensity.current
+    val cardWidth = with(density) { 180.dp.toPx() }
+    val cardHeight = with(density) { 80.dp.toPx() }
+    val spouseGap = with(density) { 20.dp.toPx() }
+    val siblingGap = with(density) { 36.dp.toPx() }
+    val vSpacing = with(density) { 190.dp.toPx() }
+    val treeGap = with(density) { 90.dp.toPx() }
+    val topMargin = with(density) { 90.dp.toPx() }
+    val dotSpacing = with(density) { 30.dp.toPx() }
+    val avatarRadius = with(density) { 16.dp.toPx() }
+    val cardPadding = with(density) { 14.dp.toPx() }
+    val nameTextSize = with(density) { 14.dp.toPx() }
+    val dateTextSize = with(density) { 11.dp.toPx() }
+    val labelTextSize = with(density) { 12.dp.toPx() }
+
+    val layout = remember(members, relationships, cardWidth, spouseGap, siblingGap, vSpacing, treeGap, topMargin) {
+        buildTreeLayout(members, relationships, cardWidth, spouseGap, siblingGap, vSpacing, treeGap, topMargin)
+    }
+    val positions = layout.positions
 
     val transformState = rememberTransformableState { zoomChange, panChange, _ ->
         onScaleChange((scale * zoomChange).coerceIn(0.3f, 3f))
@@ -330,182 +498,117 @@ fun FamilyTreeCanvas(
                     transformOrigin = TransformOrigin(0f, 0f)
                 }
         ) {
-            // Subtle graph-paper grid background
-            val gridColor = Color(0x0F1C2826)
+            // Subtle dot-grid background
+            val dotColor = Color(0x1F1C2826)
             var gx = 0f
             while (gx < size.width) {
-                drawLine(gridColor, Offset(gx, 0f), Offset(gx, size.height), strokeWidth = 1f)
-                gx += gridSpacing
-            }
-            var gy = 0f
-            while (gy < size.height) {
-                drawLine(gridColor, Offset(0f, gy), Offset(size.width, gy), strokeWidth = 1f)
-                gy += gridSpacing
+                var gy = 0f
+                while (gy < size.height) {
+                    drawCircle(dotColor, radius = 1.6f, center = Offset(gx, gy))
+                    gy += dotSpacing
+                }
+                gx += dotSpacing
             }
 
-            // Draw relationship connector lines first, underneath the cards
+            val bioColor = Color(0xFF4A7C6F)
             val spouseColor = Color(0xFFD4956A)
-            val parentChildColor = Color(0xFF4A7C6F)
+            val dashedEffect = PathEffect.dashPathEffect(floatArrayOf(16f, 10f), 0f)
+            val dottedEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 9f), 0f)
 
-            // Spouse connections: double horizontal line, edge to edge between the cards
-            relationships.forEach { rel ->
-                if (rel.relationship_type_name !in spouseRelTypes) return@forEach
-                val p1 = positions[rel.member_1] ?: return@forEach
-                val p2 = positions[rel.member_2] ?: return@forEach
+            fun connectorEffect(cat: RelCategory): PathEffect? = when (cat) {
+                RelCategory.BIO -> null
+                RelCategory.STEP -> dashedEffect
+                RelCategory.ADOPTED -> dottedEffect
+            }
+
+            // Generation labels along the left edge
+            if (positions.isNotEmpty()) {
+                val minX = positions.values.minOf { it.x } - cardWidth / 2f
+                val labelPaint = android.graphics.Paint().apply {
+                    color = android.graphics.Color.parseColor("#8A9A96")
+                    textSize = labelTextSize
+                    textAlign = android.graphics.Paint.Align.LEFT
+                    typeface = android.graphics.Typeface.DEFAULT
+                }
+                val maxGen = layout.genOfPerson.values.maxOrNull() ?: 0
+                for (gen in 0..maxGen) {
+                    val y = topMargin + gen * vSpacing
+                    drawContext.canvas.nativeCanvas.drawText(
+                        "Generation ${gen + 1}",
+                        minX - 130f,
+                        y + dateTextSize / 2f,
+                        labelPaint
+                    )
+                }
+            }
+
+            // Spouse connectors: thick orange double line, edge to edge between the cards
+            layout.couples.forEach { (a, b) ->
+                val p1 = positions[a] ?: return@forEach
+                val p2 = positions[b] ?: return@forEach
                 val left = if (p1.x <= p2.x) p1 else p2
                 val right = if (p1.x <= p2.x) p2 else p1
                 val startX = left.x + cardWidth / 2
                 val endX = right.x - cardWidth / 2
                 val midY = (left.y + right.y) / 2
-                drawLine(spouseColor, Offset(startX, midY - 3f), Offset(endX, midY - 3f), strokeWidth = 2.5f)
-                drawLine(spouseColor, Offset(startX, midY + 3f), Offset(endX, midY + 3f), strokeWidth = 2.5f)
+                drawLine(spouseColor, Offset(startX, midY - 3f), Offset(endX, midY - 3f), strokeWidth = 3f, cap = StrokeCap.Round)
+                drawLine(spouseColor, Offset(startX, midY + 3f), Offset(endX, midY + 3f), strokeWidth = 3f, cap = StrokeCap.Round)
             }
 
-            // Any relationship that's neither spouse nor parent/child (e.g. siblings) - plain line
-            relationships.forEach { rel ->
-                val isSpouse = rel.relationship_type_name in spouseRelTypes
-                val isParentChild = rel.relationship_type_name in parentRelTypes ||
-                    rel.relationship_type_name in childRelTypes
-                if (isSpouse || isParentChild) return@forEach
-                val p1 = positions[rel.member_1] ?: return@forEach
-                val p2 = positions[rel.member_2] ?: return@forEach
-                drawLine(color = parentChildColor, start = p1, end = p2, strokeWidth = 2.5f)
+            // Step/adopted sibling direct links
+            layout.siblingLines.forEach { (a, b, cat) ->
+                val p1 = positions[a] ?: return@forEach
+                val p2 = positions[b] ?: return@forEach
+                drawLine(bioColor, p1, p2, strokeWidth = 2.5f, pathEffect = connectorEffect(cat), cap = StrokeCap.Round)
             }
 
-            // Parent-child connections. Children whose parents are a couple share a single
-            // trunk dropping from the midpoint between the two spouse cards; children of a
-            // single (unpaired) parent fall back to an individual elbow from that parent.
-            val handledChildren = mutableSetOf<Int>()
-
-            couples.forEach { (aId, bId) ->
-                val posA = positions[aId] ?: return@forEach
-                val posB = positions[bId] ?: return@forEach
-                val childIds = (childrenOf[aId].orEmpty() + childrenOf[bId].orEmpty()).distinct()
-                val childPositions = childIds.mapNotNull { id -> positions[id]?.let { id to it } }
+            // Parent -> children connectors. A vertical trunk drops from the center of the
+            // couple (or from the single parent) to a horizontal bus that connects every
+            // sibling, then a vertical branch rises into each child's card. No diagonals.
+            layout.units.forEach { unit ->
+                val partnerPositions = unit.partners.mapNotNull { positions[it] }
+                if (partnerPositions.isEmpty() || unit.children.isEmpty()) return@forEach
+                val childPositions = unit.children.mapNotNull { id -> positions[id]?.let { id to it } }
                 if (childPositions.isEmpty()) return@forEach
 
-                val coupleMidX = (posA.x + posB.x) / 2f
-                val coupleBottomY = maxOf(posA.y, posB.y) + cardHeight / 2f
+                val trunkX = partnerPositions.map { it.x }.average().toFloat()
+                val trunkBottomY = partnerPositions.maxOf { it.y } + cardHeight / 2f
                 val childTopY = childPositions.minOf { it.second.y } - cardHeight / 2f
-                val busY = (coupleBottomY + childTopY) / 2f
-                val minX = minOf(coupleMidX, childPositions.minOf { it.second.x })
-                val maxX = maxOf(coupleMidX, childPositions.maxOf { it.second.x })
+                val busY = (trunkBottomY + childTopY) / 2f
+                val minX = minOf(trunkX, childPositions.minOf { it.second.x })
+                val maxX = maxOf(trunkX, childPositions.maxOf { it.second.x })
 
-                // Trunk from the couple's shared bottom edge down to the bus line
-                drawLine(parentChildColor, Offset(coupleMidX, coupleBottomY), Offset(coupleMidX, busY), strokeWidth = 2.5f)
-                // Horizontal bus connecting the trunk to each child branch
-                drawLine(parentChildColor, Offset(minX, busY), Offset(maxX, busY), strokeWidth = 2.5f)
-                // Branch down into each child's top edge
+                // Trunk from the parent(s) down to the sibling bus
+                drawLine(bioColor, Offset(trunkX, trunkBottomY), Offset(trunkX, busY), strokeWidth = 2.5f)
+                // Horizontal bus connecting all the siblings
+                drawLine(bioColor, Offset(minX, busY), Offset(maxX, busY), strokeWidth = 2.5f)
+                // Branch up into each child, styled by that child's relationship category
                 childPositions.forEach { (childId, childPos) ->
+                    val cat = layout.childCategory[childId] ?: RelCategory.BIO
                     drawLine(
-                        parentChildColor,
+                        bioColor,
                         Offset(childPos.x, busY),
                         Offset(childPos.x, childPos.y - cardHeight / 2f),
-                        strokeWidth = 2.5f
+                        strokeWidth = 2.5f,
+                        pathEffect = connectorEffect(cat)
                     )
-                    handledChildren += childId
                 }
             }
 
-            members.forEach { member ->
-                val parentPos = positions[member.id] ?: return@forEach
-                childrenOf[member.id]?.forEach { childId ->
-                    if (childId in handledChildren) return@forEach
-                    val childPos = positions[childId] ?: return@forEach
-
-                    val parentBottom = Offset(parentPos.x, parentPos.y + cardHeight / 2)
-                    val childTop = Offset(childPos.x, childPos.y - cardHeight / 2)
-                    val midY = (parentBottom.y + childTop.y) / 2
-
-                    val path = Path().apply {
-                        moveTo(parentBottom.x, parentBottom.y)
-                        lineTo(parentBottom.x, midY)
-                        lineTo(childTop.x, midY)
-                        lineTo(childTop.x, childTop.y)
-                    }
-                    drawPath(
-                        path = path,
-                        color = parentChildColor,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f)
-                    )
-                    handledChildren += childId
-                }
-            }
-
-            // Draw member cards on top
+            // Member cards on top
             members.forEach { member ->
                 val pos = positions[member.id] ?: return@forEach
-                val left = pos.x - cardWidth / 2
-                val top = pos.y - cardHeight / 2
-                val cornerRadius = CornerRadius(16f, 16f)
-
-                // Drop shadow
-                drawRoundRect(
-                    color = Color(0x1A2E5C51),
-                    topLeft = Offset(left, top + 4f),
-                    size = Size(cardWidth, cardHeight),
-                    cornerRadius = cornerRadius
+                drawMemberCard(
+                    member = member,
+                    center = pos,
+                    cardWidth = cardWidth,
+                    cardHeight = cardHeight,
+                    avatarRadius = avatarRadius,
+                    padding = cardPadding,
+                    nameTextSize = nameTextSize,
+                    dateTextSize = dateTextSize,
+                    borderColor = personBorderColor(member.id, layout)
                 )
-
-                // Card background
-                drawRoundRect(
-                    color = Color.White,
-                    topLeft = Offset(left, top),
-                    size = Size(cardWidth, cardHeight),
-                    cornerRadius = cornerRadius
-                )
-
-                // Card border accent
-                drawRoundRect(
-                    color = Color(0xFF4A7C6F),
-                    topLeft = Offset(left, top),
-                    size = Size(cardWidth, cardHeight),
-                    cornerRadius = cornerRadius,
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5f)
-                )
-
-                val namePaint = android.graphics.Paint().apply {
-                    color = android.graphics.Color.parseColor("#1C2826")
-                    textSize = nameTextSize
-                    textAlign = android.graphics.Paint.Align.CENTER
-                    typeface = android.graphics.Typeface.DEFAULT_BOLD
-                }
-                val datePaint = android.graphics.Paint().apply {
-                    color = android.graphics.Color.parseColor("#5A6B67")
-                    textSize = dateTextSize
-                    textAlign = android.graphics.Paint.Align.CENTER
-                    typeface = android.graphics.Typeface.DEFAULT
-                }
-
-                val fullName = listOf(member.first_name, member.last_name)
-                    .filter { it.isNotBlank() }
-                    .joinToString(" ")
-                val maxTextWidth = cardWidth - cardTextPadding
-                // Split into first/last name lines if the full name won't fit on one line
-                val nameLines = if (
-                    member.last_name.isNotBlank() &&
-                    namePaint.measureText(fullName) > maxTextWidth
-                ) {
-                    listOf(member.first_name, member.last_name)
-                } else {
-                    listOf(fullName)
-                }
-                val birthDate = member.birth_date?.takeIf { it.isNotBlank() }
-
-                val nameLineHeight = nameTextSize * 1.25f
-                val dateLineHeight = dateTextSize * 1.6f
-                val blockHeight = nameLines.size * nameLineHeight + (if (birthDate != null) dateLineHeight else 0f)
-
-                var textY = pos.y - blockHeight / 2f + nameLineHeight * 0.75f
-                nameLines.forEach { line ->
-                    drawContext.canvas.nativeCanvas.drawText(line, pos.x, textY, namePaint)
-                    textY += nameLineHeight
-                }
-
-                if (birthDate != null) {
-                    textY += dateLineHeight * 0.55f
-                    drawContext.canvas.nativeCanvas.drawText(birthDate, pos.x, textY, datePaint)
-                }
             }
         }
 
@@ -531,6 +634,115 @@ fun FamilyTreeCanvas(
     }
 }
 
+private fun DrawScope.drawMemberCard(
+    member: FamilyMember,
+    center: Offset,
+    cardWidth: Float,
+    cardHeight: Float,
+    avatarRadius: Float,
+    padding: Float,
+    nameTextSize: Float,
+    dateTextSize: Float,
+    borderColor: Color
+) {
+    val left = center.x - cardWidth / 2
+    val top = center.y - cardHeight / 2
+    val cornerRadius = CornerRadius(14f, 14f)
+
+    // Drop shadow
+    drawRoundRect(
+        color = Color(0x1A2E5C51),
+        topLeft = Offset(left, top + 3f),
+        size = Size(cardWidth, cardHeight),
+        cornerRadius = cornerRadius
+    )
+
+    // Card background
+    drawRoundRect(
+        color = Color.White,
+        topLeft = Offset(left, top),
+        size = Size(cardWidth, cardHeight),
+        cornerRadius = cornerRadius
+    )
+
+    // Subtle colored left border accent based on relationship type
+    drawRoundRect(
+        color = borderColor,
+        topLeft = Offset(left, top),
+        size = Size(6f, cardHeight),
+        cornerRadius = CornerRadius(3f, 3f)
+    )
+
+    // Faint outer border
+    drawRoundRect(
+        color = Color(0xFFE7E9E4),
+        topLeft = Offset(left, top),
+        size = Size(cardWidth, cardHeight),
+        cornerRadius = cornerRadius,
+        style = Stroke(width = 1.2f)
+    )
+
+    // Avatar circle with initial
+    val avatarCenter = Offset(left + padding + avatarRadius, center.y)
+    drawCircle(color = borderColor.copy(alpha = 0.18f), radius = avatarRadius, center = avatarCenter)
+    drawCircle(color = borderColor, radius = avatarRadius, center = avatarCenter, style = Stroke(width = 1.5f))
+
+    val initial = member.first_name.trim().firstOrNull()?.uppercase() ?: "?"
+    val avatarPaint = android.graphics.Paint().apply {
+        color = android.graphics.Color.parseColor("#1C2826")
+        textSize = avatarRadius
+        textAlign = android.graphics.Paint.Align.CENTER
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
+    }
+    drawContext.canvas.nativeCanvas.drawText(
+        initial,
+        avatarCenter.x,
+        avatarCenter.y + avatarRadius * 0.35f,
+        avatarPaint
+    )
+
+    val textLeft = avatarCenter.x + avatarRadius + padding * 0.7f
+    val textMaxWidth = (left + cardWidth - padding) - textLeft
+
+    val namePaint = android.graphics.Paint().apply {
+        color = android.graphics.Color.parseColor("#1C2826")
+        textSize = nameTextSize
+        textAlign = android.graphics.Paint.Align.LEFT
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
+    }
+    val datePaint = android.graphics.Paint().apply {
+        color = android.graphics.Color.parseColor("#5A6B67")
+        textSize = dateTextSize
+        textAlign = android.graphics.Paint.Align.LEFT
+        typeface = android.graphics.Typeface.DEFAULT
+    }
+
+    val fullName = listOf(member.first_name, member.last_name).filter { it.isNotBlank() }.joinToString(" ")
+    val displayName = ellipsize(namePaint, fullName, textMaxWidth)
+    val birthDate = member.birth_date?.takeIf { it.isNotBlank() }
+
+    if (birthDate != null) {
+        drawContext.canvas.nativeCanvas.drawText(displayName, textLeft, center.y - 2f, namePaint)
+        drawContext.canvas.nativeCanvas.drawText(
+            ellipsize(datePaint, birthDate, textMaxWidth),
+            textLeft,
+            center.y + dateTextSize + 6f,
+            datePaint
+        )
+    } else {
+        drawContext.canvas.nativeCanvas.drawText(displayName, textLeft, center.y + nameTextSize * 0.35f, namePaint)
+    }
+}
+
+private fun ellipsize(paint: android.graphics.Paint, text: String, maxWidth: Float): String {
+    if (maxWidth <= 0f || paint.measureText(text) <= maxWidth) return text
+    val ellipsis = "…"
+    val ellipsisWidth = paint.measureText(ellipsis)
+    var count = paint.breakText(text, true, (maxWidth - ellipsisWidth).coerceAtLeast(0f), null)
+    while (count > 0 && paint.measureText(text, 0, count) + ellipsisWidth > maxWidth) count--
+    return text.substring(0, count) + ellipsis
+}
+
 @Composable
 private fun ZoomButton(icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
     Box(
@@ -553,18 +765,28 @@ private fun TreeLegend(modifier: Modifier = Modifier) {
             .border(1.dp, Color(0xFF4A7C6F).copy(alpha = 0.25f), RoundedCornerShape(10.dp))
             .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
-        LegendItem(label = "Parent/Child", color = Color(0xFF4A7C6F)) { color ->
-            drawLine(
-                color,
-                Offset(0f, size.height / 2f),
-                Offset(size.width, size.height / 2f),
-                strokeWidth = 4f
-            )
-        }
-        Spacer(Modifier.height(8.dp))
         LegendItem(label = "Spouse", color = Color(0xFFD4956A)) { color ->
             drawLine(color, Offset(0f, size.height / 2f - 3f), Offset(size.width, size.height / 2f - 3f), strokeWidth = 3f)
             drawLine(color, Offset(0f, size.height / 2f + 3f), Offset(size.width, size.height / 2f + 3f), strokeWidth = 3f)
+        }
+        Spacer(Modifier.height(8.dp))
+        LegendItem(label = "Parent / Child", color = Color(0xFF4A7C6F)) { color ->
+            drawLine(color, Offset(0f, size.height / 2f), Offset(size.width, size.height / 2f), strokeWidth = 3.5f)
+        }
+        Spacer(Modifier.height(8.dp))
+        LegendItem(label = "Step", color = Color(0xFF4A7C6F)) { color ->
+            drawLine(
+                color, Offset(0f, size.height / 2f), Offset(size.width, size.height / 2f),
+                strokeWidth = 3f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 6f), 0f)
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        LegendItem(label = "Adopted", color = Color(0xFF4A7C6F)) { color ->
+            drawLine(
+                color, Offset(0f, size.height / 2f), Offset(size.width, size.height / 2f),
+                strokeWidth = 3f, cap = StrokeCap.Round,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(1.5f, 6f), 0f)
+            )
         }
     }
 }
