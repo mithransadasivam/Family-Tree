@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -22,6 +23,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
@@ -51,6 +53,12 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
     var newLastName by remember { mutableStateOf("") }
     var newPhone by remember { mutableStateOf("") }
     var newBirthPlace by remember { mutableStateOf("") }
+
+    // Hoisted here (rather than inside FamilyTreeCanvas) and backed by rememberSaveable so
+    // zoom/pan survive navigating to a member profile and back.
+    var treeScale by rememberSaveable { mutableStateOf(1.1f) }
+    var treeOffsetX by rememberSaveable { mutableStateOf(0f) }
+    var treeOffsetY by rememberSaveable { mutableStateOf(0f) }
 
     fun loadData() {
         scope.launch {
@@ -103,6 +111,13 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
                 FamilyTreeCanvas(
                     members = members,
                     relationships = relationships,
+                    scale = treeScale,
+                    onScaleChange = { treeScale = it },
+                    offset = Offset(treeOffsetX, treeOffsetY),
+                    onOffsetChange = { newOffset ->
+                        treeOffsetX = newOffset.x
+                        treeOffsetY = newOffset.y
+                    },
                     onMemberClick = { member ->
                         navController.navigate(Screen.MemberDetail.createRoute(member.id))
                     }
@@ -171,6 +186,10 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
 fun FamilyTreeCanvas(
     members: List<FamilyMember>,
     relationships: List<Relationship>,
+    scale: Float,
+    onScaleChange: (Float) -> Unit,
+    offset: Offset,
+    onOffsetChange: (Offset) -> Unit,
     onMemberClick: (FamilyMember) -> Unit
 ) {
     val density = LocalDensity.current
@@ -255,17 +274,33 @@ fun FamilyTreeCanvas(
         map
     }
 
-    var scale by remember { mutableStateOf(1.1f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
     val transformState = rememberTransformableState { zoomChange, panChange, _ ->
-        scale = (scale * zoomChange).coerceIn(0.3f, 3f)
-        offset += panChange
+        onScaleChange((scale * zoomChange).coerceIn(0.3f, 3f))
+        onOffsetChange(offset + panChange)
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .transformable(state = transformState)
+            .pointerInput(members, positions, scale, offset) {
+                detectTapGestures { tapOffset ->
+                    // pointerInput here sits outside the Canvas's graphicsLayer, so it only
+                    // ever sees raw screen coordinates - convert back into canvas/content
+                    // space using the current scale and pan offset. transformOrigin on the
+                    // graphicsLayer is pinned to the top-left so this stays a plain linear
+                    // inverse (no extra center-of-layer correction needed).
+                    val canvasX = (tapOffset.x - offset.x) / scale
+                    val canvasY = (tapOffset.y - offset.y) / scale
+
+                    val hitMember = members.firstOrNull { member ->
+                        val pos = positions[member.id] ?: return@firstOrNull false
+                        canvasX in (pos.x - cardWidth / 2)..(pos.x + cardWidth / 2) &&
+                            canvasY in (pos.y - cardHeight / 2)..(pos.y + cardHeight / 2)
+                    }
+                    hitMember?.let { onMemberClick(it) }
+                }
+            }
     ) {
         Canvas(
             modifier = Modifier
@@ -275,26 +310,7 @@ fun FamilyTreeCanvas(
                     scaleY = scale
                     translationX = offset.x
                     translationY = offset.y
-                }
-                .pointerInput(members, positions) {
-                    detectTapGestures { tapOffset ->
-                        // graphicsLayer transforms are purely visual - pointerInput never
-                        // sees them, so the raw tap position must be converted back into
-                        // canvas/content space using the current scale and pan offset.
-                        // graphicsLayer scales around the layer's own center by default,
-                        // so the center of this Canvas has to be factored into the inverse.
-                        val centerX = size.width / 2f
-                        val centerY = size.height / 2f
-                        val canvasX = (tapOffset.x - offset.x - centerX) / scale + centerX
-                        val canvasY = (tapOffset.y - offset.y - centerY) / scale + centerY
-
-                        val hitMember = members.firstOrNull { member ->
-                            val pos = positions[member.id] ?: return@firstOrNull false
-                            canvasX in (pos.x - cardWidth / 2)..(pos.x + cardWidth / 2) &&
-                                canvasY in (pos.y - cardHeight / 2)..(pos.y + cardHeight / 2)
-                        }
-                        hitMember?.let { onMemberClick(it) }
-                    }
+                    transformOrigin = TransformOrigin(0f, 0f)
                 }
         ) {
             // Subtle graph-paper grid background
@@ -456,11 +472,11 @@ fun FamilyTreeCanvas(
                 .padding(end = 16.dp, bottom = 90.dp)
         ) {
             ZoomButton(icon = Icons.Default.Add) {
-                scale = (scale + 0.15f).coerceIn(0.3f, 3f)
+                onScaleChange((scale + 0.15f).coerceIn(0.3f, 3f))
             }
             Spacer(Modifier.height(10.dp))
             ZoomButton(icon = Icons.Default.Remove) {
-                scale = (scale - 0.15f).coerceIn(0.3f, 3f)
+                onScaleChange((scale - 0.15f).coerceIn(0.3f, 3f))
             }
         }
     }
