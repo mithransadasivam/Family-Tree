@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -726,19 +727,36 @@ fun FamilyTreeCanvas(
                 }
             }
 
-            // Generation labels pinned to a fixed x so they're always fully on-screen; their y
-            // follows the current pan/zoom so each label stays aligned with its row.
+            // Generation labels are a fixed overlay layer - drawn as separate Composables here,
+            // completely outside the Canvas's graphicsLayer, so they never get swept up in the
+            // scale/translate transform applied to the tree itself. Each one tracks the screen Y
+            // of its row (so it still lines up with that generation as you pan/zoom) but is
+            // clamped to stay within the visible viewport, and rendered as a small pill badge so
+            // it stays readable - and clearly distinct from a member card - if it ever ends up
+            // over one.
+            val labelHeightPx = with(density) { 22.dp.toPx() }
+            val labelClampMargin = with(density) { 8.dp.toPx() }
             for (gen in 0..maxGen) {
                 val contentY = topMargin + gen * vSpacing
-                val screenY = contentY * animatedScale + animatedOffsetY
-                Text(
-                    text = "Generation ${gen + 1}",
-                    fontSize = 11.sp,
-                    color = Color(0xFF6B7975),
+                val rawScreenY = contentY * animatedScale + animatedOffsetY
+                val minY = labelClampMargin
+                val maxY = (screenHeightPx - labelHeightPx - labelClampMargin).coerceAtLeast(minY)
+                val clampedY = rawScreenY.coerceIn(minY, maxY)
+                Box(
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .offset { IntOffset(16.dp.roundToPx(), (screenY - 8.dp.toPx()).roundToInt()) }
-                )
+                        .offset { IntOffset(16.dp.roundToPx(), clampedY.roundToInt()) }
+                        .shadow(elevation = 2.dp, shape = RoundedCornerShape(50))
+                        .background(Color.White, RoundedCornerShape(50))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "Gen ${gen + 1}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF4A7C6F)
+                    )
+                }
             }
 
             Column(
