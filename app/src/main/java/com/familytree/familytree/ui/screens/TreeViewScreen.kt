@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -24,12 +25,14 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.familytree.familytree.data.models.CreateMemberRequest
 import com.familytree.familytree.data.models.FamilyMember
@@ -231,6 +234,20 @@ fun FamilyTreeCanvas(
         map
     }
 
+    // Distinct spouse couples, used to draw one shared parent-child bus per couple
+    // instead of a separate line from each individual parent
+    val couples = remember(members, relationships) {
+        val seen = mutableSetOf<Pair<Int, Int>>()
+        val list = mutableListOf<Pair<Int, Int>>()
+        relationships.forEach { rel ->
+            if (rel.relationship_type_name in spouseRelTypes) {
+                val pair = minOf(rel.member_1, rel.member_2) to maxOf(rel.member_1, rel.member_2)
+                if (seen.add(pair)) list.add(pair)
+            }
+        }
+        list
+    }
+
     // Assign generations using BFS
     val generations = remember(members, relationships) {
         val hasParent = mutableSetOf<Int>()
@@ -327,65 +344,91 @@ fun FamilyTreeCanvas(
             }
 
             // Draw relationship connector lines first, underneath the cards
+            val spouseColor = Color(0xFFD4956A)
+            val parentChildColor = Color(0xFF4A7C6F)
+
+            // Spouse connections: double horizontal line, edge to edge between the cards
             relationships.forEach { rel ->
+                if (rel.relationship_type_name !in spouseRelTypes) return@forEach
                 val p1 = positions[rel.member_1] ?: return@forEach
                 val p2 = positions[rel.member_2] ?: return@forEach
+                val left = if (p1.x <= p2.x) p1 else p2
+                val right = if (p1.x <= p2.x) p2 else p1
+                val startX = left.x + cardWidth / 2
+                val endX = right.x - cardWidth / 2
+                val midY = (left.y + right.y) / 2
+                drawLine(spouseColor, Offset(startX, midY - 3f), Offset(endX, midY - 3f), strokeWidth = 2.5f)
+                drawLine(spouseColor, Offset(startX, midY + 3f), Offset(endX, midY + 3f), strokeWidth = 2.5f)
+            }
+
+            // Any relationship that's neither spouse nor parent/child (e.g. siblings) - plain line
+            relationships.forEach { rel ->
                 val isSpouse = rel.relationship_type_name in spouseRelTypes
                 val isParentChild = rel.relationship_type_name in parentRelTypes ||
                     rel.relationship_type_name in childRelTypes
+                if (isSpouse || isParentChild) return@forEach
+                val p1 = positions[rel.member_1] ?: return@forEach
+                val p2 = positions[rel.member_2] ?: return@forEach
+                drawLine(color = parentChildColor, start = p1, end = p2, strokeWidth = 2.5f)
+            }
 
-                when {
-                    isSpouse -> {
-                        // Horizontal double line between spouse cards on the same row
-                        val left = if (p1.x <= p2.x) p1 else p2
-                        val right = if (p1.x <= p2.x) p2 else p1
-                        val startX = left.x + cardWidth / 2
-                        val endX = right.x - cardWidth / 2
-                        val midY = (left.y + right.y) / 2
-                        drawLine(
-                            color = Color(0xFFD4956A),
-                            start = Offset(startX, midY - 3f),
-                            end = Offset(endX, midY - 3f),
-                            strokeWidth = 2.5f
-                        )
-                        drawLine(
-                            color = Color(0xFFD4956A),
-                            start = Offset(startX, midY + 3f),
-                            end = Offset(endX, midY + 3f),
-                            strokeWidth = 2.5f
-                        )
-                    }
-                    isParentChild -> {
-                        // Right-angle elbow: down from parent bottom, across, down into child top
-                        val genOf1 = generations[rel.member_1] ?: 0
-                        val genOf2 = generations[rel.member_2] ?: 0
-                        val parent = if (genOf1 <= genOf2) p1 else p2
-                        val child = if (genOf1 <= genOf2) p2 else p1
+            // Parent-child connections. Children whose parents are a couple share a single
+            // trunk dropping from the midpoint between the two spouse cards; children of a
+            // single (unpaired) parent fall back to an individual elbow from that parent.
+            val handledChildren = mutableSetOf<Int>()
 
-                        val parentBottom = Offset(parent.x, parent.y + cardHeight / 2)
-                        val childTop = Offset(child.x, child.y - cardHeight / 2)
-                        val midY = (parentBottom.y + childTop.y) / 2
+            couples.forEach { (aId, bId) ->
+                val posA = positions[aId] ?: return@forEach
+                val posB = positions[bId] ?: return@forEach
+                val childIds = (childrenOf[aId].orEmpty() + childrenOf[bId].orEmpty()).distinct()
+                val childPositions = childIds.mapNotNull { id -> positions[id]?.let { id to it } }
+                if (childPositions.isEmpty()) return@forEach
 
-                        val path = Path().apply {
-                            moveTo(parentBottom.x, parentBottom.y)
-                            lineTo(parentBottom.x, midY)
-                            lineTo(childTop.x, midY)
-                            lineTo(childTop.x, childTop.y)
-                        }
-                        drawPath(
-                            path = path,
-                            color = Color(0xFF4A7C6F),
-                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f)
-                        )
+                val coupleMidX = (posA.x + posB.x) / 2f
+                val coupleBottomY = maxOf(posA.y, posB.y) + cardHeight / 2f
+                val childTopY = childPositions.minOf { it.second.y } - cardHeight / 2f
+                val busY = (coupleBottomY + childTopY) / 2f
+                val minX = minOf(coupleMidX, childPositions.minOf { it.second.x })
+                val maxX = maxOf(coupleMidX, childPositions.maxOf { it.second.x })
+
+                // Trunk from the couple's shared bottom edge down to the bus line
+                drawLine(parentChildColor, Offset(coupleMidX, coupleBottomY), Offset(coupleMidX, busY), strokeWidth = 2.5f)
+                // Horizontal bus connecting the trunk to each child branch
+                drawLine(parentChildColor, Offset(minX, busY), Offset(maxX, busY), strokeWidth = 2.5f)
+                // Branch down into each child's top edge
+                childPositions.forEach { (childId, childPos) ->
+                    drawLine(
+                        parentChildColor,
+                        Offset(childPos.x, busY),
+                        Offset(childPos.x, childPos.y - cardHeight / 2f),
+                        strokeWidth = 2.5f
+                    )
+                    handledChildren += childId
+                }
+            }
+
+            members.forEach { member ->
+                val parentPos = positions[member.id] ?: return@forEach
+                childrenOf[member.id]?.forEach { childId ->
+                    if (childId in handledChildren) return@forEach
+                    val childPos = positions[childId] ?: return@forEach
+
+                    val parentBottom = Offset(parentPos.x, parentPos.y + cardHeight / 2)
+                    val childTop = Offset(childPos.x, childPos.y - cardHeight / 2)
+                    val midY = (parentBottom.y + childTop.y) / 2
+
+                    val path = Path().apply {
+                        moveTo(parentBottom.x, parentBottom.y)
+                        lineTo(parentBottom.x, midY)
+                        lineTo(childTop.x, midY)
+                        lineTo(childTop.x, childTop.y)
                     }
-                    else -> {
-                        drawLine(
-                            color = Color(0xFF4A7C6F),
-                            start = p1,
-                            end = p2,
-                            strokeWidth = 2.5f
-                        )
-                    }
+                    drawPath(
+                        path = path,
+                        color = parentChildColor,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f)
+                    )
+                    handledChildren += childId
                 }
             }
 
@@ -479,6 +522,12 @@ fun FamilyTreeCanvas(
                 onScaleChange((scale - 0.15f).coerceIn(0.3f, 3f))
             }
         }
+
+        TreeLegend(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(16.dp)
+        )
     }
 }
 
@@ -493,5 +542,44 @@ private fun ZoomButton(icon: androidx.compose.ui.graphics.vector.ImageVector, on
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = null, tint = Color(0xFF4A7C6F))
+    }
+}
+
+@Composable
+private fun TreeLegend(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .background(Color.White.copy(alpha = 0.92f), RoundedCornerShape(10.dp))
+            .border(1.dp, Color(0xFF4A7C6F).copy(alpha = 0.25f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        LegendItem(label = "Parent/Child", color = Color(0xFF4A7C6F)) { color ->
+            drawLine(
+                color,
+                Offset(0f, size.height / 2f),
+                Offset(size.width, size.height / 2f),
+                strokeWidth = 4f
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        LegendItem(label = "Spouse", color = Color(0xFFD4956A)) { color ->
+            drawLine(color, Offset(0f, size.height / 2f - 3f), Offset(size.width, size.height / 2f - 3f), strokeWidth = 3f)
+            drawLine(color, Offset(0f, size.height / 2f + 3f), Offset(size.width, size.height / 2f + 3f), strokeWidth = 3f)
+        }
+    }
+}
+
+@Composable
+private fun LegendItem(
+    label: String,
+    color: Color,
+    drawIndicator: DrawScope.(Color) -> Unit
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Canvas(modifier = Modifier.size(width = 28.dp, height = 14.dp)) {
+            drawIndicator(color)
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(label, fontSize = 12.sp, color = Color(0xFF1C2826))
     }
 }
