@@ -278,8 +278,15 @@ fun FamilyTreeCanvas(
                 }
                 .pointerInput(members, positions) {
                     detectTapGestures { tapOffset ->
-                        val canvasX = tapOffset.x
-                        val canvasY = tapOffset.y
+                        // graphicsLayer transforms are purely visual - pointerInput never
+                        // sees them, so the raw tap position must be converted back into
+                        // canvas/content space using the current scale and pan offset.
+                        // graphicsLayer scales around the layer's own center by default,
+                        // so the center of this Canvas has to be factored into the inverse.
+                        val centerX = size.width / 2f
+                        val centerY = size.height / 2f
+                        val canvasX = (tapOffset.x - offset.x - centerX) / scale + centerX
+                        val canvasY = (tapOffset.y - offset.y - centerY) / scale + centerY
 
                         val hitMember = members.firstOrNull { member ->
                             val pos = positions[member.id] ?: return@firstOrNull false
