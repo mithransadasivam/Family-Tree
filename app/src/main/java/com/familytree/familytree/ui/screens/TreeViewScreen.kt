@@ -256,11 +256,16 @@ fun FamilyTreeCanvas(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(members, positions, scale, offset) {
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = offset.x
+                    translationY = offset.y
+                }
+                .pointerInput(members, positions) {
                     detectTapGestures { tapOffset ->
-                        // Account for scale and offset transformation
-                        val canvasX = (tapOffset.x - offset.x) / scale
-                        val canvasY = (tapOffset.y - offset.y) / scale
+                        val canvasX = tapOffset.x
+                        val canvasY = tapOffset.y
 
                         // Find the closest member to the tap
                         var closestMember: FamilyMember? = null
@@ -283,12 +288,6 @@ fun FamilyTreeCanvas(
                             closestMember?.let { onMemberClick(it) }
                         }
                     }
-                }
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    translationX = offset.x
-                    translationY = offset.y
                 }
         ) {
             // Draw relationship lines first
