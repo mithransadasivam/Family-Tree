@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.familytree.familytree.data.models.CreateMemberRequest
@@ -172,11 +173,15 @@ fun FamilyTreeCanvas(
     relationships: List<Relationship>,
     onMemberClick: (FamilyMember) -> Unit
 ) {
-    val cardWidth = 170f
-    val cardHeight = 84f
-    val hSpacing = 230f
-    val vSpacing = 220f
-    val gridSpacing = 40f
+    val density = LocalDensity.current
+    val cardWidth = with(density) { 190.dp.toPx() }
+    val cardHeight = with(density) { 120.dp.toPx() }
+    val hSpacing = with(density) { 260.dp.toPx() }
+    val vSpacing = with(density) { 260.dp.toPx() }
+    val gridSpacing = with(density) { 40.dp.toPx() }
+    val nameTextSize = with(density) { 15.dp.toPx() }
+    val dateTextSize = with(density) { 11.dp.toPx() }
+    val cardTextPadding = with(density) { 16.dp.toPx() }
 
     val parentRelTypes = listOf(
         "Father", "Mother", "Grandfather", "Grandmother",
@@ -250,7 +255,7 @@ fun FamilyTreeCanvas(
         map
     }
 
-    var scale by remember { mutableStateOf(0.85f) }
+    var scale by remember { mutableStateOf(1.1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     val transformState = rememberTransformableState { zoomChange, panChange, _ ->
         scale = (scale * zoomChange).coerceIn(0.3f, 3f)
@@ -393,35 +398,47 @@ fun FamilyTreeCanvas(
                     style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5f)
                 )
 
+                val namePaint = android.graphics.Paint().apply {
+                    color = android.graphics.Color.parseColor("#1C2826")
+                    textSize = nameTextSize
+                    textAlign = android.graphics.Paint.Align.CENTER
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                }
+                val datePaint = android.graphics.Paint().apply {
+                    color = android.graphics.Color.parseColor("#5A6B67")
+                    textSize = dateTextSize
+                    textAlign = android.graphics.Paint.Align.CENTER
+                    typeface = android.graphics.Typeface.DEFAULT
+                }
+
                 val fullName = listOf(member.first_name, member.last_name)
                     .filter { it.isNotBlank() }
                     .joinToString(" ")
+                val maxTextWidth = cardWidth - cardTextPadding
+                // Split into first/last name lines if the full name won't fit on one line
+                val nameLines = if (
+                    member.last_name.isNotBlank() &&
+                    namePaint.measureText(fullName) > maxTextWidth
+                ) {
+                    listOf(member.first_name, member.last_name)
+                } else {
+                    listOf(fullName)
+                }
                 val birthDate = member.birth_date?.takeIf { it.isNotBlank() }
 
-                drawContext.canvas.nativeCanvas.drawText(
-                    fullName,
-                    pos.x,
-                    pos.y - (if (birthDate != null) 6f else -6f),
-                    android.graphics.Paint().apply {
-                        color = android.graphics.Color.parseColor("#1C2826")
-                        textSize = 26f
-                        textAlign = android.graphics.Paint.Align.CENTER
-                        typeface = android.graphics.Typeface.DEFAULT_BOLD
-                    }
-                )
+                val nameLineHeight = nameTextSize * 1.25f
+                val dateLineHeight = dateTextSize * 1.6f
+                val blockHeight = nameLines.size * nameLineHeight + (if (birthDate != null) dateLineHeight else 0f)
+
+                var textY = pos.y - blockHeight / 2f + nameLineHeight * 0.75f
+                nameLines.forEach { line ->
+                    drawContext.canvas.nativeCanvas.drawText(line, pos.x, textY, namePaint)
+                    textY += nameLineHeight
+                }
 
                 if (birthDate != null) {
-                    drawContext.canvas.nativeCanvas.drawText(
-                        birthDate,
-                        pos.x,
-                        pos.y + 20f,
-                        android.graphics.Paint().apply {
-                            color = android.graphics.Color.parseColor("#5A6B67")
-                            textSize = 20f
-                            textAlign = android.graphics.Paint.Align.CENTER
-                            typeface = android.graphics.Typeface.DEFAULT
-                        }
-                    )
+                    textY += dateLineHeight * 0.55f
+                    drawContext.canvas.nativeCanvas.drawText(birthDate, pos.x, textY, datePaint)
                 }
             }
         }
