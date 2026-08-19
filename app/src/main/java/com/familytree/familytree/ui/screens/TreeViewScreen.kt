@@ -1,19 +1,27 @@
 package com.familytree.familytree.ui.screens
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
@@ -27,7 +35,6 @@ import com.familytree.familytree.data.repository.AppRepository
 import com.familytree.familytree.ui.navigation.Screen
 import com.familytree.familytree.ui.theme.*
 import kotlinx.coroutines.launch
-import kotlin.math.sqrt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -165,9 +172,11 @@ fun FamilyTreeCanvas(
     relationships: List<Relationship>,
     onMemberClick: (FamilyMember) -> Unit
 ) {
-    val nodeRadius = 55f
-    val hSpacing = 220f
-    val vSpacing = 200f
+    val cardWidth = 170f
+    val cardHeight = 84f
+    val hSpacing = 230f
+    val vSpacing = 220f
+    val gridSpacing = 40f
 
     val parentRelTypes = listOf(
         "Father", "Mother", "Grandfather", "Grandmother",
@@ -267,91 +276,182 @@ fun FamilyTreeCanvas(
                         val canvasX = tapOffset.x
                         val canvasY = tapOffset.y
 
-                        // Find the closest member to the tap
-                        var closestMember: FamilyMember? = null
-                        var closestDistance = Float.MAX_VALUE
-
-                        members.forEach { member ->
-                            val pos = positions[member.id] ?: return@forEach
-                            val distance = sqrt(
-                                (canvasX - pos.x) * (canvasX - pos.x) +
-                                (canvasY - pos.y) * (canvasY - pos.y)
-                            )
-                            if (distance < closestDistance) {
-                                closestDistance = distance
-                                closestMember = member
-                            }
+                        val hitMember = members.firstOrNull { member ->
+                            val pos = positions[member.id] ?: return@firstOrNull false
+                            canvasX in (pos.x - cardWidth / 2)..(pos.x + cardWidth / 2) &&
+                                canvasY in (pos.y - cardHeight / 2)..(pos.y + cardHeight / 2)
                         }
-
-                        // Only trigger if tap is within node radius
-                        if (closestDistance < nodeRadius + 25f) {
-                            closestMember?.let { onMemberClick(it) }
-                        }
+                        hitMember?.let { onMemberClick(it) }
                     }
                 }
         ) {
-            // Draw relationship lines first
+            // Subtle graph-paper grid background
+            val gridColor = Color(0x0F1C2826)
+            var gx = 0f
+            while (gx < size.width) {
+                drawLine(gridColor, Offset(gx, 0f), Offset(gx, size.height), strokeWidth = 1f)
+                gx += gridSpacing
+            }
+            var gy = 0f
+            while (gy < size.height) {
+                drawLine(gridColor, Offset(0f, gy), Offset(size.width, gy), strokeWidth = 1f)
+                gy += gridSpacing
+            }
+
+            // Draw relationship connector lines first, underneath the cards
             relationships.forEach { rel ->
                 val p1 = positions[rel.member_1] ?: return@forEach
                 val p2 = positions[rel.member_2] ?: return@forEach
                 val isSpouse = rel.relationship_type_name in spouseRelTypes
-                drawLine(
-                    color = if (isSpouse) Color(0xFFD4956A) else Color(0xFF4A7C6F),
-                    start = p1,
-                    end = p2,
-                    strokeWidth = 2.5f,
-                    pathEffect = if (isSpouse) androidx.compose.ui.graphics.PathEffect.dashPathEffect(
-                        floatArrayOf(10f, 5f)
-                    ) else null
-                )
+                val isParentChild = rel.relationship_type_name in parentRelTypes ||
+                    rel.relationship_type_name in childRelTypes
+
+                when {
+                    isSpouse -> {
+                        // Horizontal double line between spouse cards on the same row
+                        val left = if (p1.x <= p2.x) p1 else p2
+                        val right = if (p1.x <= p2.x) p2 else p1
+                        val startX = left.x + cardWidth / 2
+                        val endX = right.x - cardWidth / 2
+                        val midY = (left.y + right.y) / 2
+                        drawLine(
+                            color = Color(0xFFD4956A),
+                            start = Offset(startX, midY - 3f),
+                            end = Offset(endX, midY - 3f),
+                            strokeWidth = 2.5f
+                        )
+                        drawLine(
+                            color = Color(0xFFD4956A),
+                            start = Offset(startX, midY + 3f),
+                            end = Offset(endX, midY + 3f),
+                            strokeWidth = 2.5f
+                        )
+                    }
+                    isParentChild -> {
+                        // Right-angle elbow: down from parent bottom, across, down into child top
+                        val genOf1 = generations[rel.member_1] ?: 0
+                        val genOf2 = generations[rel.member_2] ?: 0
+                        val parent = if (genOf1 <= genOf2) p1 else p2
+                        val child = if (genOf1 <= genOf2) p2 else p1
+
+                        val parentBottom = Offset(parent.x, parent.y + cardHeight / 2)
+                        val childTop = Offset(child.x, child.y - cardHeight / 2)
+                        val midY = (parentBottom.y + childTop.y) / 2
+
+                        val path = Path().apply {
+                            moveTo(parentBottom.x, parentBottom.y)
+                            lineTo(parentBottom.x, midY)
+                            lineTo(childTop.x, midY)
+                            lineTo(childTop.x, childTop.y)
+                        }
+                        drawPath(
+                            path = path,
+                            color = Color(0xFF4A7C6F),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f)
+                        )
+                    }
+                    else -> {
+                        drawLine(
+                            color = Color(0xFF4A7C6F),
+                            start = p1,
+                            end = p2,
+                            strokeWidth = 2.5f
+                        )
+                    }
+                }
             }
 
-            // Draw nodes on top
+            // Draw member cards on top
             members.forEach { member ->
                 val pos = positions[member.id] ?: return@forEach
+                val left = pos.x - cardWidth / 2
+                val top = pos.y - cardHeight / 2
+                val cornerRadius = CornerRadius(16f, 16f)
 
-                // Shadow
-                drawCircle(
+                // Drop shadow
+                drawRoundRect(
                     color = Color(0x1A2E5C51),
-                    radius = nodeRadius + 4f,
-                    center = pos.copy(y = pos.y + 4f)
+                    topLeft = Offset(left, top + 4f),
+                    size = Size(cardWidth, cardHeight),
+                    cornerRadius = cornerRadius
                 )
 
-                // Circle
-                drawCircle(color = Color(0xFF4A7C6F), radius = nodeRadius, center = pos)
-                drawCircle(
+                // Card background
+                drawRoundRect(
                     color = Color.White,
-                    radius = nodeRadius,
-                    center = pos,
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3f)
+                    topLeft = Offset(left, top),
+                    size = Size(cardWidth, cardHeight),
+                    cornerRadius = cornerRadius
                 )
 
-                // Initial inside circle
+                // Card border accent
+                drawRoundRect(
+                    color = Color(0xFF4A7C6F),
+                    topLeft = Offset(left, top),
+                    size = Size(cardWidth, cardHeight),
+                    cornerRadius = cornerRadius,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5f)
+                )
+
+                val fullName = listOf(member.first_name, member.last_name)
+                    .filter { it.isNotBlank() }
+                    .joinToString(" ")
+                val birthDate = member.birth_date?.takeIf { it.isNotBlank() }
+
                 drawContext.canvas.nativeCanvas.drawText(
-                    member.first_name.take(1).uppercase(),
+                    fullName,
                     pos.x,
-                    pos.y + 12f,
+                    pos.y - (if (birthDate != null) 6f else -6f),
                     android.graphics.Paint().apply {
-                        color = android.graphics.Color.WHITE
-                        textSize = 36f
+                        color = android.graphics.Color.parseColor("#1C2826")
+                        textSize = 26f
                         textAlign = android.graphics.Paint.Align.CENTER
                         typeface = android.graphics.Typeface.DEFAULT_BOLD
                     }
                 )
 
-                // Name below circle
-                drawContext.canvas.nativeCanvas.drawText(
-                    member.first_name,
-                    pos.x,
-                    pos.y + nodeRadius + 30f,
-                    android.graphics.Paint().apply {
-                        color = android.graphics.Color.parseColor("#1C2826")
-                        textSize = 28f
-                        textAlign = android.graphics.Paint.Align.CENTER
-                        typeface = android.graphics.Typeface.DEFAULT
-                    }
-                )
+                if (birthDate != null) {
+                    drawContext.canvas.nativeCanvas.drawText(
+                        birthDate,
+                        pos.x,
+                        pos.y + 20f,
+                        android.graphics.Paint().apply {
+                            color = android.graphics.Color.parseColor("#5A6B67")
+                            textSize = 20f
+                            textAlign = android.graphics.Paint.Align.CENTER
+                            typeface = android.graphics.Typeface.DEFAULT
+                        }
+                    )
+                }
             }
         }
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 90.dp)
+        ) {
+            ZoomButton(icon = Icons.Default.Add) {
+                scale = (scale + 0.15f).coerceIn(0.3f, 3f)
+            }
+            Spacer(Modifier.height(10.dp))
+            ZoomButton(icon = Icons.Default.Remove) {
+                scale = (scale - 0.15f).coerceIn(0.3f, 3f)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ZoomButton(icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .background(Color.White, CircleShape)
+            .border(1.dp, Color(0xFF4A7C6F).copy(alpha = 0.3f), CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = null, tint = Color(0xFF4A7C6F))
     }
 }
