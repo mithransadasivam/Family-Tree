@@ -674,23 +674,46 @@ fun FamilyTreeCanvas(
                     drawLine(bioColor, p1, p2, strokeWidth = 2.5f, pathEffect = connectorEffect(cat), cap = StrokeCap.Round)
                 }
 
-                // Parent -> children connectors. A single vertical trunk drops from the center
-                // bottom of the couple (or single parent) to a horizontal bus that connects
-                // every sibling, then a vertical line rises into each child's card. No diagonals.
+                // Parent -> children connectors. A single vertical trunk drops from the midpoint
+                // between the couple (or the bottom center of a single parent) to a horizontal
+                // bus that connects every sibling, then a vertical line rises into each child's
+                // card. No diagonals.
                 layout.units.forEach { unit ->
                     val partnerPositions = unit.partners.mapNotNull { positions[it] }
                     if (partnerPositions.isEmpty() || unit.children.isEmpty()) return@forEach
                     val childPositions = unit.children.mapNotNull { id -> positions[id]?.let { id to it } }
                     if (childPositions.isEmpty()) return@forEach
 
-                    val trunkX = partnerPositions.map { it.x }.average().toFloat()
                     val trunkBottomY = partnerPositions.maxOf { it.y } + cardHeight / 2f
+
+                    // Midpoint between the couple's cards: computed from the facing edges of the
+                    // two cards (not the average of their centers), so it stays correct even when
+                    // the two cards have different widths. A solo parent drops from their own
+                    // card's bottom center.
+                    val trunkX = if (unit.partners.size == 2) {
+                        val idA = unit.partners[0]
+                        val idB = unit.partners[1]
+                        val posA = positions.getValue(idA)
+                        val posB = positions.getValue(idB)
+                        val leftId = if (posA.x <= posB.x) idA else idB
+                        val rightId = if (posA.x <= posB.x) idB else idA
+                        val leftPos = positions.getValue(leftId)
+                        val rightPos = positions.getValue(rightId)
+                        val leftEdge = leftPos.x + (cardWidthOf[leftId] ?: 0f) / 2f
+                        val rightEdge = rightPos.x - (cardWidthOf[rightId] ?: 0f) / 2f
+                        // Horizontal line connecting the bottom of both spouse cards
+                        drawLine(bioColor, Offset(leftEdge, trunkBottomY), Offset(rightEdge, trunkBottomY), strokeWidth = 2.5f)
+                        (leftEdge + rightEdge) / 2f
+                    } else {
+                        partnerPositions[0].x
+                    }
+
                     val childTopY = childPositions.minOf { it.second.y } - cardHeight / 2f
                     val busY = (trunkBottomY + childTopY) / 2f
                     val minX = minOf(trunkX, childPositions.minOf { it.second.x })
                     val maxX = maxOf(trunkX, childPositions.maxOf { it.second.x })
 
-                    // Trunk from the parent(s) down to the sibling bus
+                    // Trunk from the couple's midpoint (or solo parent) down to the sibling bus
                     drawLine(bioColor, Offset(trunkX, trunkBottomY), Offset(trunkX, busY), strokeWidth = 2.5f)
                     // Horizontal bus connecting all the siblings
                     drawLine(bioColor, Offset(minX, busY), Offset(maxX, busY), strokeWidth = 2.5f)
