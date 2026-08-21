@@ -1,3 +1,11 @@
+*.pyc
+__pycache__/
+*.pyo
+.env
+*.sqlite3
+staticfiles/
+media/
+
 *.iml
 .gradle
 /local.properties
