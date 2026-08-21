@@ -253,7 +253,7 @@ private fun buildTreeLayout(
     spouseGap: Float,
     siblingGap: Float,
     vSpacing: Float,
-    treeGap: Float,
+    familyUnitGap: Float,
     topMargin: Float
 ): TreeLayoutResult {
     val parentEdges = mutableListOf<ParentEdge>()
@@ -440,10 +440,16 @@ private fun buildTreeLayout(
         }
     }
 
+    // Each forest root is, by construction, a family line with no shared ancestor or descendant
+    // relationship to any other root (rootUnits are couples/solo-parents who aren't anyone's
+    // child in the tree, plus any leftover isolated members) - i.e. genuinely unrelated family
+    // units. Since every root's subtree width already encloses its full descendant footprint at
+    // every generation, spacing roots apart by familyUnitGap keeps that separation consistent
+    // down every row, not just at the top.
     var cursor = 0f
     forest.forEach { root ->
         place(root, cursor, 0)
-        cursor += root.width + treeGap
+        cursor += root.width + familyUnitGap
     }
 
     return TreeLayoutResult(positions, genOfPerson, unitsList, couples, siblingLines, childCategory)
@@ -519,9 +525,12 @@ fun FamilyTreeCanvas(
     val cardMaxWidth = with(density) { 220.dp.toPx() }
     val cardHeight = with(density) { 90.dp.toPx() }
     val spouseGap = with(density) { 20.dp.toPx() }
-    val siblingGap = with(density) { 40.dp.toPx() }
+    // Siblings (and spouses) belong to the same family unit, so they get the same normal gap.
+    val siblingGap = with(density) { 20.dp.toPx() }
     val vSpacing = with(density) { 160.dp.toPx() }
-    val treeGap = with(density) { 40.dp.toPx() }
+    // Unrelated family units (separate forest roots) get the normal 20dp gap plus 120dp extra
+    // separation, so it's visually obvious they aren't part of the same family.
+    val familyUnitGap = with(density) { 140.dp.toPx() }
     val topMargin = with(density) { 90.dp.toPx() }
     val dotSpacing = with(density) { 30.dp.toPx() }
     val avatarRadius = with(density) { 16.dp.toPx() }
@@ -553,8 +562,8 @@ fun FamilyTreeCanvas(
         computeCardWidths(members, namePaint, datePaint, cardMinWidth, cardMaxWidth, avatarRadius * 2, cardPadding)
     }
 
-    val layout = remember(members, relationships, cardWidthOf, spouseGap, siblingGap, vSpacing, treeGap, topMargin) {
-        buildTreeLayout(members, relationships, cardWidthOf, spouseGap, siblingGap, vSpacing, treeGap, topMargin)
+    val layout = remember(members, relationships, cardWidthOf, spouseGap, siblingGap, vSpacing, familyUnitGap, topMargin) {
+        buildTreeLayout(members, relationships, cardWidthOf, spouseGap, siblingGap, vSpacing, familyUnitGap, topMargin)
     }
     val positions = layout.positions
     val maxGen = remember(layout) { layout.genOfPerson.values.maxOrNull() ?: 0 }
@@ -703,7 +712,10 @@ fun FamilyTreeCanvas(
                         val rightEdge = rightPos.x - (cardWidthOf[rightId] ?: 0f) / 2f
                         // Horizontal line connecting the bottom of both spouse cards
                         drawLine(bioColor, Offset(leftEdge, trunkBottomY), Offset(rightEdge, trunkBottomY), strokeWidth = 2.5f)
-                        (leftEdge + rightEdge) / 2f
+                        // Trunk drops from the midpoint between the two spouse cards' centers,
+                        // not the midpoint of their facing edges - matches where the double
+                        // spouse-connector line is centered even when the cards differ in width.
+                        (leftPos.x + rightPos.x) / 2f
                     } else {
                         partnerPositions[0].x
                     }
