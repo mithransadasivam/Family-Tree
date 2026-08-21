@@ -225,6 +225,12 @@ private sealed class RenderNode {
 }
 private class UnitNode(val unit: TreeUnit, val childNodes: List<RenderNode>) : RenderNode()
 private class LeafNode(val personId: Int) : RenderNode()
+// A person who is a "child" here but is ALSO the head of their own couple unit that was
+// already built via their spouse's birth-parent branch (an in-law: both this person's own
+// parents and their spouse's parents are known, e.g. a diamond in the family graph). They
+// already have a real, correctly-positioned card elsewhere, so this reference contributes no
+// width/position of its own - it just lets that branch's connector look up their true position.
+private class RefNode(val personId: Int) : RenderNode()
 
 private class TreeLayoutResult(
     val positions: Map<Int, Offset>,
@@ -354,12 +360,18 @@ private fun buildTreeLayout(
 
     fun buildNode(personId: Int): RenderNode {
         val unitId = headUnitOfPerson[personId]
-        if (unitId != null && unitId !in builtUnitIds) {
-            builtUnitIds += unitId
-            val unit = unitsList.first { it.id == unitId }
-            unit.partners.forEach { renderedIds += it }
-            val childNodes = unit.children.map { buildNode(it) }
-            return UnitNode(unit, childNodes)
+        if (unitId != null) {
+            if (unitId !in builtUnitIds) {
+                builtUnitIds += unitId
+                val unit = unitsList.first { it.id == unitId }
+                unit.partners.forEach { renderedIds += it }
+                val childNodes = unit.children.map { buildNode(it) }
+                return UnitNode(unit, childNodes)
+            }
+            // This person's own couple unit was already built via their spouse's birth-parent
+            // branch. Reference it rather than positioning them a second time.
+            renderedIds += personId
+            return RefNode(personId)
         }
         renderedIds += personId
         return LeafNode(personId)
@@ -389,15 +401,21 @@ private fun buildTreeLayout(
                 } else {
                     widthOf(node.unit.partners[0])
                 }
-                if (node.childNodes.isEmpty()) {
+                // RefNode children are already positioned elsewhere (an in-law's own couple
+                // unit) - they take up no width and no sibling gap in this row.
+                val spacedChildWidths = node.childNodes
+                    .map { it to computeWidth(it) }
+                    .filter { (child, _) -> child !is RefNode }
+                if (spacedChildWidths.isEmpty()) {
                     ownWidth
                 } else {
-                    val childrenWidth = node.childNodes.sumOf { computeWidth(it).toDouble() }.toFloat() +
-                        (node.childNodes.size - 1) * siblingGap
+                    val childrenWidth = spacedChildWidths.sumOf { it.second.toDouble() }.toFloat() +
+                        (spacedChildWidths.size - 1) * siblingGap
                     maxOf(ownWidth, childrenWidth)
                 }
             }
             is LeafNode -> widthOf(node.personId)
+            is RefNode -> 0f
         }
         node.width = w
         return w
@@ -423,11 +441,12 @@ private fun buildTreeLayout(
                     positions[node.unit.partners[0]] = Offset(centerX, y)
                 }
                 node.unit.partners.forEach { genOfPerson[it] = depth }
-                if (node.childNodes.isNotEmpty()) {
-                    val totalChildWidth = node.childNodes.sumOf { it.width.toDouble() }.toFloat() +
-                        (node.childNodes.size - 1) * siblingGap
+                val spacedChildren = node.childNodes.filter { it !is RefNode }
+                if (spacedChildren.isNotEmpty()) {
+                    val totalChildWidth = spacedChildren.sumOf { it.width.toDouble() }.toFloat() +
+                        (spacedChildren.size - 1) * siblingGap
                     var cursor = centerX - totalChildWidth / 2f
-                    node.childNodes.forEach { child ->
+                    spacedChildren.forEach { child ->
                         place(child, cursor, depth + 1)
                         cursor += child.width + siblingGap
                     }
@@ -436,6 +455,11 @@ private fun buildTreeLayout(
             is LeafNode -> {
                 positions[node.personId] = Offset(centerX, y)
                 genOfPerson[node.personId] = depth
+            }
+            is RefNode -> {
+                // Zero-width reference to a person already positioned via their own couple
+                // unit elsewhere - callers filter these out before recursing into place(), so
+                // this branch only exists to keep the sealed `when` exhaustive.
             }
         }
     }
