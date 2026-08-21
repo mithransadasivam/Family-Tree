@@ -109,6 +109,7 @@ fun LoginScreen(navController: NavController) {
                     onClick = {
                         isLoading = true
                         scope.launch {
+                            repository.clearToken()
                             repository.saveToken("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzg3OTQ0OTgwLCJpYXQiOjE3ODczNDAxODAsImp0aSI6IjE2NGE1NWM1ZjMzODQyNDU5MDI0OGNkOWZlN2NiNzg5IiwidXNlcl9pZCI6MSwiZW1haWwiOiJ0ZXN0QGZhbWlseS5jb20ifQ.KgJ8QfwzJ4yEZtheUH9LoHJzbUJ_Pn-FXVcSgc6UDwA")
                             isLoading = false
                             navController.navigate(Screen.Home.route) {

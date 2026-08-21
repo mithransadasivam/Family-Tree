@@ -1,13 +1,11 @@
 package com.familytree.familytree.ui.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.familytree.familytree.data.api.TokenManager
 import com.familytree.familytree.ui.screens.EditHistoryScreen
 import com.familytree.familytree.ui.screens.HomeScreen
 import com.familytree.familytree.ui.screens.LoginScreen
@@ -35,11 +33,8 @@ sealed class Screen(val route: String) {
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
-    val context = LocalContext.current
-    val isLoggedIn = TokenManager.getToken(context) != null
-    val startDestination = if (isLoggedIn) Screen.Home.route else Screen.Login.route
 
-    NavHost(navController = navController, startDestination = startDestination) {
+    NavHost(navController = navController, startDestination = Screen.Login.route) {
         composable(Screen.Login.route) {
             LoginScreen(navController = navController)
         }
