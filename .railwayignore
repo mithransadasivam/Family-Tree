@@ -1,0 +1,10 @@
+app/
+gradle/
+gradlew
+gradlew.bat
+build.gradle.kts
+settings.gradle.kts
+gradle.properties
+.idea/
+*.apk
+*.aab
