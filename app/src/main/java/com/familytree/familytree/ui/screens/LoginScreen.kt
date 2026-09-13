@@ -110,7 +110,7 @@ fun LoginScreen(navController: NavController) {
                         isLoading = true
                         scope.launch {
                             repository.clearToken()
-                            repository.saveToken("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzg5OTI2OTY2LCJpYXQiOjE3ODkzMjIxNjYsImp0aSI6IjVjYWUxNGI4YWU3NzQyOWQ4OTQxZWM5MjUzYjA0N2ZkIiwidXNlcl9pZCI6MSwiZW1haWwiOiJ0ZXN0QGZhbWlseS5jb20ifQ.LqoXXOucb3I6QiUcKtODKN3SiYsX9YETPTPRWR7_fZQ")
+                            repository.saveToken("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzg5OTM5ODc3LCJpYXQiOjE3ODkzMzUwNzcsImp0aSI6IjExNWQwZDNmZjI1MzQ1ZTk4NGVhOWViOWU3OTNhYTUxIiwidXNlcl9pZCI6MSwiZW1haWwiOiJ0ZXN0QGZhbWlseS5jb20ifQ.9k37eXtFsHt7z-iynfY_QDWhW5Vz3yVeVjOLjWId8sU")
                             isLoading = false
                             navController.navigate(Screen.Home.route) {
                                 popUpTo(Screen.Login.route) { inclusive = true }
