@@ -24,7 +24,7 @@ object TokenManager {
 }
 
 object RetrofitClient {
-    private const val BASE_URL = "http://10.0.2.2:8000/api/"
+    private const val BASE_URL = "https://family-tree-backend-production.up.railway.app/api/"
 
     fun create(context: Context): ApiService {
         val authInterceptor = Interceptor { chain ->
