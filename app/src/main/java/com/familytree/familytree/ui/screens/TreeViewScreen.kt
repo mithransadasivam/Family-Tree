@@ -608,13 +608,31 @@ fun FamilyTreeCanvas(
         val screenWidthPx = with(density) { maxWidth.toPx() }
         val screenHeightPx = with(density) { maxHeight.toPx() }
 
-        // Auto-fit once on first load so every member is visible on screen.
+        // Auto-fit once on first load so every member is visible on screen. Initial scale is
+        // estimated from generation counts (widest generation's person count x generation
+        // count) rather than the exact measured bounds used by the manual fit-to-screen
+        // button below - centering still uses the real bounds so the estimate can't land the
+        // tree off-screen.
         LaunchedEffect(hasAutoFitted, layout, screenWidthPx, screenHeightPx) {
             if (!hasAutoFitted && positions.isNotEmpty() && screenWidthPx > 0f && screenHeightPx > 0f) {
                 val bounds = computeBounds(positions, cardWidthOf, cardHeight)
-                val (fitScale, fitOffset) = computeFitScaleAndOffset(bounds, screenWidthPx, screenHeightPx)
-                onScaleChange(fitScale)
-                onOffsetChange(fitOffset)
+                val widestGenerationCount = layout.genOfPerson.values
+                    .groupingBy { it }.eachCount().values.maxOrNull() ?: 1
+                val generationCount = maxGen + 1
+                val avgCardWidth = cardWidthOf.values.takeIf { it.isNotEmpty() }
+                    ?.average()?.toFloat() ?: cardMinWidth
+                val treeWidth = widestGenerationCount * (avgCardWidth + siblingGap)
+                val treeHeight = generationCount * (cardHeight + vSpacing)
+                val initialScale = (minOf(screenWidthPx / treeWidth, screenHeightPx / treeHeight) * 0.85f)
+                    .coerceIn(0.3f, 3f)
+                val centerX = bounds.minX + bounds.width / 2f
+                val centerY = bounds.minY + bounds.height / 2f
+                val initialOffset = Offset(
+                    screenWidthPx / 2f - centerX * initialScale,
+                    screenHeightPx / 2f - centerY * initialScale
+                )
+                onScaleChange(initialScale)
+                onOffsetChange(initialOffset)
                 onAutoFitted()
             }
         }
