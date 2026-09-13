@@ -839,16 +839,19 @@ fun FamilyTreeCanvas(
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 16.dp, bottom = 90.dp)
+                    // Bottom clearance is taller than the requested 12.dp so these don't sit
+                    // underneath the full-width "+ Add Family Member" button drawn on top of
+                    // this canvas at the same screen edge.
+                    .padding(end = 12.dp, bottom = 76.dp)
             ) {
                 ZoomButton(icon = Icons.Default.CenterFocusStrong, contentDescription = "Fit to screen") {
                     fitToScreen()
                 }
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
                 ZoomButton(icon = Icons.Default.Add, contentDescription = "Zoom in") {
                     onScaleChange((scale + 0.15f).coerceIn(0.3f, 3f))
                 }
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
                 ZoomButton(icon = Icons.Default.Remove, contentDescription = "Zoom out") {
                     onScaleChange((scale - 0.15f).coerceIn(0.3f, 3f))
                 }
@@ -965,14 +968,14 @@ private fun ZoomButton(
 ) {
     Box(
         modifier = Modifier
-            .size(44.dp)
-            .shadow(elevation = 3.dp, shape = CircleShape, clip = false)
-            .background(Color.White, CircleShape)
+            .size(36.dp)
+            .shadow(elevation = 1.dp, shape = CircleShape, clip = false)
+            .background(Color.White.copy(alpha = 0.85f), CircleShape)
             .border(1.dp, Color(0xFF4A7C6F).copy(alpha = 0.3f), CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, contentDescription = contentDescription, tint = Color(0xFF4A7C6F))
+        Icon(icon, contentDescription = contentDescription, tint = Color(0xFF4A7C6F), modifier = Modifier.size(18.dp))
     }
 }
 
