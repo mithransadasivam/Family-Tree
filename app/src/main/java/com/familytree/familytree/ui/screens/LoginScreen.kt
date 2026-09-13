@@ -19,6 +19,7 @@ import com.familytree.familytree.ui.navigation.Screen
 import com.familytree.familytree.ui.theme.*
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import com.google.android.gms.common.api.ApiException
 import kotlinx.coroutines.launch
 
@@ -40,7 +41,11 @@ fun LoginScreen(navController: NavController) {
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        Log.d("GoogleSignIn", "Result code: ${result.resultCode}")
+        Log.d(
+            "GoogleSignIn",
+            "Result code: ${result.resultCode} (RESULT_OK=${Activity.RESULT_OK}, RESULT_CANCELED=${Activity.RESULT_CANCELED}), " +
+                "data extras: ${result.data?.extras}"
+        )
         if (result.resultCode == Activity.RESULT_OK) {
             val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
             try {
@@ -57,18 +62,30 @@ fun LoginScreen(navController: NavController) {
                                 popUpTo(Screen.Login.route) { inclusive = true }
                             }
                         } else {
-                            errorMessage = authResult.exceptionOrNull()?.message ?: "Login failed"
+                            val ex = authResult.exceptionOrNull()
+                            Log.e("GoogleSignIn", "Backend auth failed", ex)
+                            errorMessage = "Backend login failed: ${ex?.message ?: "unknown error"}"
                         }
                     }
                 } else {
-                    errorMessage = "Could not get ID token from Google"
+                    errorMessage = "Signed in to Google but no ID token was returned. Check that the Web Client ID matches an OAuth client of type 'Web application' in the same GCP project as the Android client."
                 }
             } catch (e: ApiException) {
-                Log.e("GoogleSignIn", "ApiException status code: ${e.statusCode}")
-                errorMessage = "Google sign in failed: code ${e.statusCode}"
+                val statusText = GoogleSignInStatusCodes.getStatusCodeString(e.statusCode)
+                Log.e("GoogleSignIn", "ApiException status code: ${e.statusCode} ($statusText)", e)
+                errorMessage = "Google sign in failed: $statusText (code ${e.statusCode})"
             }
         } else {
-            errorMessage = "Sign in cancelled or failed (code: ${result.resultCode})"
+            Log.e(
+                "GoogleSignIn",
+                "Sign-in flow returned resultCode=${result.resultCode} instead of RESULT_OK. " +
+                    "This is commonly caused by: (1) the debug keystore's SHA-1 not being registered " +
+                    "on an Android OAuth client in Google Cloud Console for package com.familytree.familytree, " +
+                    "(2) the OAuth consent screen being in Testing mode without this Google account added as a " +
+                    "test user, or (3) no Google account configured on the device/emulator."
+            )
+            errorMessage = "Google sign-in was cancelled or failed (code: ${result.resultCode}, expected ${Activity.RESULT_OK}). " +
+                "Check Logcat tag 'GoogleSignIn' for details — likely an unregistered SHA-1 or OAuth consent screen issue in Google Cloud Console."
         }
     }
 
