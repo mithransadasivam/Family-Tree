@@ -121,23 +121,6 @@ fun LoginScreen(navController: NavController) {
                 ) {
                     Text("Continue with Google", color = androidx.compose.ui.graphics.Color.White)
                 }
-                Spacer(modifier = Modifier.height(12.dp))
-                OutlinedButton(
-                    onClick = {
-                        isLoading = true
-                        scope.launch {
-                            repository.clearToken()
-                            repository.saveToken("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzg5OTM5ODc3LCJpYXQiOjE3ODkzMzUwNzcsImp0aSI6IjExNWQwZDNmZjI1MzQ1ZTk4NGVhOWViOWU3OTNhYTUxIiwidXNlcl9pZCI6MSwiZW1haWwiOiJ0ZXN0QGZhbWlseS5jb20ifQ.9k37eXtFsHt7z-iynfY_QDWhW5Vz3yVeVjOLjWId8sU")
-                            isLoading = false
-                            navController.navigate(Screen.Home.route) {
-                                popUpTo(Screen.Login.route) { inclusive = true }
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(50.dp)
-                ) {
-                    Text("Dev Login (Testing Only)", color = Primary)
-                }
             }
         }
     }
