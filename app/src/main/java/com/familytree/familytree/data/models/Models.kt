@@ -26,6 +26,7 @@ data class FamilyTree(
     val description: String,
     val owner: User,
     val member_count: Int,
+    val approval_required: Boolean,
     val created_at: String,
     val updated_at: String
 )
@@ -111,6 +112,36 @@ data class RedeemCodeRequest(
 data class FamilyCodeResponse(
     val code: String,
     val tree: String
+)
+
+data class JoinRequest(
+    val id: Int,
+    val tree: Int,
+    val tree_name: String,
+    val requester_name: String,
+    val requester_email: String,
+    val status: String,
+    val message: String,
+    val created_at: String
+)
+
+data class SubmitJoinRequestRequest(
+    val code: String,
+    val message: String
+)
+
+data class SubmitJoinRequestResponse(
+    val auto_approved: Boolean,
+    val message: String,
+    val request: JoinRequest
+)
+
+data class UpdateJoinRequestStatusRequest(
+    val status: String
+)
+
+data class UpdateTreeSettingsRequest(
+    val approval_required: Boolean
 )
 
 data class EditHistory(

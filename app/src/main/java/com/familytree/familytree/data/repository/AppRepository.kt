@@ -150,4 +150,52 @@ class AppRepository(private val context: Context) {
             else Result.failure(Exception("Failed: ${response.code()}"))
         } catch (e: Exception) { Result.failure(e) }
     }
+
+    suspend fun updateTreeApprovalRequired(treeId: Int, required: Boolean): Result<FamilyTree> {
+        return try {
+            val response = api.updateTreeSettings(treeId, UpdateTreeSettingsRequest(required))
+            if (response.isSuccessful) Result.success(response.body()!!)
+            else Result.failure(Exception("Failed: ${response.code()}"))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun submitJoinRequest(code: String, message: String): Result<SubmitJoinRequestResponse> {
+        return try {
+            val response = api.submitJoinRequest(SubmitJoinRequestRequest(code, message))
+            if (response.isSuccessful) Result.success(response.body()!!)
+            else Result.failure(Exception("Failed: ${response.code()}"))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun getPendingRequests(treeId: Int): Result<List<JoinRequest>> {
+        return try {
+            val response = api.getPendingRequests(treeId)
+            if (response.isSuccessful) Result.success(response.body()!!)
+            else Result.failure(Exception("Failed: ${response.code()}"))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun approveRequest(requestId: Int): Result<JoinRequest> {
+        return try {
+            val response = api.updateJoinRequestStatus(requestId, UpdateJoinRequestStatusRequest("approved"))
+            if (response.isSuccessful) Result.success(response.body()!!)
+            else Result.failure(Exception("Failed: ${response.code()}"))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun rejectRequest(requestId: Int): Result<JoinRequest> {
+        return try {
+            val response = api.updateJoinRequestStatus(requestId, UpdateJoinRequestStatusRequest("rejected"))
+            if (response.isSuccessful) Result.success(response.body()!!)
+            else Result.failure(Exception("Failed: ${response.code()}"))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun getMyRequests(): Result<List<JoinRequest>> {
+        return try {
+            val response = api.getMyJoinRequests()
+            if (response.isSuccessful) Result.success(response.body()!!)
+            else Result.failure(Exception("Failed: ${response.code()}"))
+        } catch (e: Exception) { Result.failure(e) }
+    }
 }

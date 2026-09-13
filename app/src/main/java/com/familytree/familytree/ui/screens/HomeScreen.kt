@@ -68,6 +68,8 @@ fun HomeScreen(navController: NavController) {
     var newTreeName by remember { mutableStateOf("") }
     var newTreeDesc by remember { mutableStateOf("") }
     var joinCode by remember { mutableStateOf("") }
+    var joinMessage by remember { mutableStateOf("") }
+    var joinResultMessage by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         val result = repository.getFamilyTrees()
@@ -98,6 +100,16 @@ fun HomeScreen(navController: NavController) {
                 modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                if (joinResultMessage.isNotEmpty()) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().clickable { joinResultMessage = "" },
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F3EC))
+                        ) {
+                            Text(joinResultMessage, color = Color(0xFF2E7D5B), modifier = Modifier.padding(12.dp))
+                        }
+                    }
+                }
                 if (trees.isEmpty()) {
                     item {
                         Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
@@ -186,20 +198,36 @@ fun HomeScreen(navController: NavController) {
                 onDismissRequest = { showJoinDialog = false },
                 title = { Text("Join Family Tree") },
                 text = {
-                    OutlinedTextField(value = joinCode, onValueChange = { joinCode = it.uppercase() }, label = { Text("Family Code") }, modifier = Modifier.fillMaxWidth())
+                    Column {
+                        OutlinedTextField(value = joinCode, onValueChange = { joinCode = it.uppercase() }, label = { Text("Family Code") }, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = joinMessage,
+                            onValueChange = { joinMessage = it },
+                            label = { Text("Introduce yourself to the tree owner") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 },
                 confirmButton = {
                     Button(onClick = {
                         scope.launch {
-                            val result = repository.redeemFamilyCode(joinCode)
+                            val result = repository.submitJoinRequest(joinCode, joinMessage)
                             if (result.isSuccess) {
-                                val refreshed = repository.getFamilyTrees()
-                                if (refreshed.isSuccess) trees = refreshed.getOrNull() ?: emptyList()
+                                val body = result.getOrNull()!!
+                                joinResultMessage = if (body.auto_approved) {
+                                    val refreshed = repository.getFamilyTrees()
+                                    if (refreshed.isSuccess) trees = refreshed.getOrNull() ?: emptyList()
+                                    body.message
+                                } else {
+                                    "Request sent! The tree owner will review your request."
+                                }
                                 showJoinDialog = false
                                 joinCode = ""
+                                joinMessage = ""
                             }
                         }
-                    }) { Text("Join") }
+                    }) { Text("Send Request") }
                 },
                 dismissButton = { TextButton(onClick = { showJoinDialog = false }) { Text("Cancel") } }
             )

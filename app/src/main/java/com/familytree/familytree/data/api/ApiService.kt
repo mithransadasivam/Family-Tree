@@ -62,4 +62,19 @@ interface ApiService {
 
     @GET("edit-history/")
     suspend fun getEditHistory(@Query("tree_id") treeId: Int): Response<List<EditHistory>>
+
+    @PATCH("family-trees/{id}/")
+    suspend fun updateTreeSettings(@Path("id") id: Int, @Body body: UpdateTreeSettingsRequest): Response<FamilyTree>
+
+    @POST("join-requests/")
+    suspend fun submitJoinRequest(@Body body: SubmitJoinRequestRequest): Response<SubmitJoinRequestResponse>
+
+    @GET("join-requests/")
+    suspend fun getPendingRequests(@Query("tree_id") treeId: Int): Response<List<JoinRequest>>
+
+    @PATCH("join-requests/{id}/")
+    suspend fun updateJoinRequestStatus(@Path("id") id: Int, @Body body: UpdateJoinRequestStatusRequest): Response<JoinRequest>
+
+    @GET("join-requests/mine/")
+    suspend fun getMyJoinRequests(): Response<List<JoinRequest>>
 }

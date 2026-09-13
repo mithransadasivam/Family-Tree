@@ -9,4 +9,5 @@ urlpatterns = [
     path('api/', include('relationships.urls')),
     path('api/', include('family_codes.urls')),
     path('api/', include('edit_history.urls')),
+    path('api/', include('join_requests.urls')),
 ]

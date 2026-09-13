@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     'relationships',
     'family_codes',
     'edit_history',
+    'join_requests',
 ]
 
 MIDDLEWARE = [

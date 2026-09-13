@@ -10,6 +10,8 @@ import com.familytree.familytree.ui.screens.EditHistoryScreen
 import com.familytree.familytree.ui.screens.HomeScreen
 import com.familytree.familytree.ui.screens.LoginScreen
 import com.familytree.familytree.ui.screens.MemberDetailScreen
+import com.familytree.familytree.ui.screens.MyRequestsScreen
+import com.familytree.familytree.ui.screens.PendingRequestsScreen
 import com.familytree.familytree.ui.screens.ProfileScreen
 import com.familytree.familytree.ui.screens.SettingsScreen
 import com.familytree.familytree.ui.screens.TreeViewScreen
@@ -28,6 +30,8 @@ sealed class Screen(val route: String) {
     object EditHistory : Screen("history/{treeId}") {
         fun createRoute(treeId: Int) = "history/$treeId"
     }
+    object PendingRequests : Screen("pending-requests")
+    object MyRequests : Screen("my-requests")
 }
 
 @Composable
@@ -73,6 +77,12 @@ fun AppNavigation() {
                 navController = navController,
                 treeId = backStackEntry.arguments?.getInt("treeId") ?: 0
             )
+        }
+        composable(Screen.PendingRequests.route) {
+            PendingRequestsScreen(navController = navController)
+        }
+        composable(Screen.MyRequests.route) {
+            MyRequestsScreen(navController = navController)
         }
     }
 }

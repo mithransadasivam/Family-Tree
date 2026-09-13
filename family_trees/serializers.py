@@ -19,7 +19,7 @@ class FamilyTreeSerializer(serializers.ModelSerializer):
         model = FamilyTree
         fields = [
             'id', 'tree_name', 'description', 'owner',
-            'member_count', 'created_at', 'updated_at'
+            'member_count', 'approval_required', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'owner', 'created_at', 'updated_at']
 
