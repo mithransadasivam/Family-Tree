@@ -42,6 +42,8 @@ import com.familytree.familytree.ui.theme.Primary
 import com.familytree.familytree.ui.theme.Surface
 import com.familytree.familytree.ui.theme.TextHint
 import com.familytree.familytree.ui.theme.TextPrimary
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,6 +54,14 @@ fun SettingsScreen(navController: NavController) {
     val repository = remember { AppRepository(context) }
     var isTreeOwner by remember { mutableStateOf(false) }
     var pendingCount by remember { mutableStateOf(0) }
+
+    val googleSignInClient = remember {
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken("274201294258-7sd4aqc4m7vm54avvas15ir20c7aq4gn.apps.googleusercontent.com")
+            .requestEmail()
+            .build()
+        GoogleSignIn.getClient(context, gso)
+    }
 
     LaunchedEffect(Unit) {
         val me = repository.getMe().getOrNull()
@@ -85,6 +95,7 @@ fun SettingsScreen(navController: NavController) {
                 Column {
                     SettingsItem("👤", "Edit Profile") { }
                     SettingsItem("🚪", "Log Out", textColor = Color.Red) {
+                        googleSignInClient.signOut()
                         scope.launch {
                             repository.clearToken()
                             navController.navigate(Screen.Login.route) {
