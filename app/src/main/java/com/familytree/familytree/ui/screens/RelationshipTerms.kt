@@ -30,6 +30,22 @@ data class RelationshipTerm(
     val category: RelationshipCategory
 )
 
+// Shown alongside every non-English language's own terms, so switching languages doesn't lose
+// access to the handful of universally-needed relations that language doesn't have a cultural
+// word for in this app's data. Kept deliberately small so the selected language's own terms
+// visually dominate the list instead of being buried under the full English set.
+private val basicEnglishTerms = listOf(
+    RelationshipTerm("Father", "Father", RelationshipCategory.PARENTS),
+    RelationshipTerm("Mother", "Mother", RelationshipCategory.PARENTS),
+    RelationshipTerm("Son", "Son", RelationshipCategory.CHILDREN),
+    RelationshipTerm("Daughter", "Daughter", RelationshipCategory.CHILDREN),
+    RelationshipTerm("Brother", "Brother", RelationshipCategory.SIBLINGS),
+    RelationshipTerm("Sister", "Sister", RelationshipCategory.SIBLINGS),
+    RelationshipTerm("Spouse", "Spouse", RelationshipCategory.SPOUSE),
+    RelationshipTerm("Husband", "Husband", RelationshipCategory.SPOUSE),
+    RelationshipTerm("Wife", "Wife", RelationshipCategory.SPOUSE),
+)
+
 private val englishTerms = listOf(
     RelationshipTerm("Father", "Father", RelationshipCategory.PARENTS),
     RelationshipTerm("Mother", "Mother", RelationshipCategory.PARENTS),
@@ -165,14 +181,14 @@ private val punjabiTerms = listOf(
     RelationshipTerm("Veera", "Brother", RelationshipCategory.SIBLINGS),
 )
 
-/** English always shows just the English set; every other language shows its own cultural
- *  terms plus the English basics as a fallback (e.g. for Guardian, step-/in-law terms that
- *  aren't given a dedicated translation). */
+/** English shows the full English set. Every other language shows ONLY its own cultural terms,
+ *  with the small basicEnglishTerms set appended after (not the full English list) so the
+ *  selected language's own words are what the user actually sees, not drowned out by English. */
 fun termsForLanguage(language: RelationshipLanguage): List<RelationshipTerm> = when (language) {
     RelationshipLanguage.ENGLISH -> englishTerms
-    RelationshipLanguage.HINDI -> englishTerms + hindiTerms
-    RelationshipLanguage.TAMIL -> englishTerms + tamilTerms
-    RelationshipLanguage.TELUGU -> englishTerms + teluguTerms
-    RelationshipLanguage.MALAYALAM -> englishTerms + malayalamTerms
-    RelationshipLanguage.PUNJABI -> englishTerms + punjabiTerms
+    RelationshipLanguage.HINDI -> hindiTerms + basicEnglishTerms
+    RelationshipLanguage.TAMIL -> tamilTerms + basicEnglishTerms
+    RelationshipLanguage.TELUGU -> teluguTerms + basicEnglishTerms
+    RelationshipLanguage.MALAYALAM -> malayalamTerms + basicEnglishTerms
+    RelationshipLanguage.PUNJABI -> punjabiTerms + basicEnglishTerms
 }
