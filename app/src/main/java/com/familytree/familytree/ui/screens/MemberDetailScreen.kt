@@ -12,28 +12,40 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -58,6 +70,10 @@ import com.familytree.familytree.ui.theme.Primary
 import com.familytree.familytree.ui.theme.Surface
 import com.familytree.familytree.ui.theme.TextHint
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +89,32 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
     var showAddRel by remember { mutableStateOf(false) }
     var selectedMemberId by remember { mutableStateOf(0) }
     var selectedRelTypeId by remember { mutableStateOf(0) }
+
+    var showEditSheet by remember { mutableStateOf(false) }
+    var editFirstName by remember { mutableStateOf("") }
+    var editLastName by remember { mutableStateOf("") }
+    var editPhone by remember { mutableStateOf("") }
+    var editEmail by remember { mutableStateOf("") }
+    var editBirthDate by remember { mutableStateOf("") }
+    var editBirthPlace by remember { mutableStateOf("") }
+    var editDeathDate by remember { mutableStateOf("") }
+    var editDeathPlace by remember { mutableStateOf("") }
+    var isSavingEdit by remember { mutableStateOf(false) }
+    var editError by remember { mutableStateOf("") }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    fun openEditSheet(m: FamilyMember) {
+        editFirstName = m.first_name
+        editLastName = m.last_name
+        editPhone = m.phone
+        editEmail = m.email
+        editBirthDate = m.birth_date ?: ""
+        editBirthPlace = m.birth_place
+        editDeathDate = m.death_date ?: ""
+        editDeathPlace = m.death_place
+        editError = ""
+        showEditSheet = true
+    }
 
     LaunchedEffect(memberId) {
         val memberResult = repository.getFamilyMember(memberId)
@@ -91,6 +133,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(member?.first_name ?: "Member", color = Color.White) },
@@ -100,6 +143,9 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                     }
                 },
                 actions = {
+                    IconButton(onClick = { member?.let { openEditSheet(it) } }) {
+                        Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = Color.White)
+                    }
                     IconButton(onClick = {
                         scope.launch {
                             member?.let { m ->
@@ -309,4 +355,129 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
             }
         )
     }
+
+    if (showEditSheet) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { if (!isSavingEdit) showEditSheet = false },
+            sheetState = sheetState
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 24.dp)
+            ) {
+                Text("Edit Member", fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(value = editFirstName, onValueChange = { editFirstName = it }, label = { Text("First Name") }, modifier = Modifier.fillMaxWidth(), enabled = !isSavingEdit)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = editLastName, onValueChange = { editLastName = it }, label = { Text("Last Name") }, modifier = Modifier.fillMaxWidth(), enabled = !isSavingEdit)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = editPhone, onValueChange = { editPhone = it }, label = { Text("Phone") }, modifier = Modifier.fillMaxWidth(), enabled = !isSavingEdit)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = editEmail, onValueChange = { editEmail = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth(), enabled = !isSavingEdit)
+                Spacer(Modifier.height(8.dp))
+                EditDateField(label = "Birth Date", value = editBirthDate, enabled = !isSavingEdit, onValueChange = { editBirthDate = it })
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = editBirthPlace, onValueChange = { editBirthPlace = it }, label = { Text("Birth Place") }, modifier = Modifier.fillMaxWidth(), enabled = !isSavingEdit)
+                Spacer(Modifier.height(8.dp))
+                EditDateField(label = "Death Date (optional)", value = editDeathDate, enabled = !isSavingEdit, onValueChange = { editDeathDate = it })
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = editDeathPlace, onValueChange = { editDeathPlace = it }, label = { Text("Death Place (optional)") }, modifier = Modifier.fillMaxWidth(), enabled = !isSavingEdit)
+
+                if (editError.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(editError, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                }
+
+                Spacer(Modifier.height(20.dp))
+                Button(
+                    onClick = {
+                        editError = ""
+                        isSavingEdit = true
+                        scope.launch {
+                            val updates = mutableMapOf(
+                                "first_name" to editFirstName,
+                                "last_name" to editLastName,
+                                "phone" to editPhone,
+                                "email" to editEmail,
+                                "birth_place" to editBirthPlace,
+                                "death_place" to editDeathPlace
+                            )
+                            if (editBirthDate.isNotBlank()) updates["birth_date"] = editBirthDate
+                            if (editDeathDate.isNotBlank()) updates["death_date"] = editDeathDate
+                            val result = repository.updateFamilyMember(memberId, updates)
+                            isSavingEdit = false
+                            if (result.isSuccess) {
+                                member = result.getOrNull()
+                                showEditSheet = false
+                                snackbarHostState.showSnackbar("Member updated successfully")
+                            } else {
+                                editError = result.exceptionOrNull()?.message ?: "Failed to update member"
+                            }
+                        }
+                    },
+                    enabled = !isSavingEdit && editFirstName.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (isSavingEdit) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                    } else {
+                        Text("Save")
+                    }
+                }
+            }
+        }
+    }
 }
+
+@Composable
+private fun EditDateField(label: String, value: String, enabled: Boolean, onValueChange: (String) -> Unit) {
+    var showPicker by remember { mutableStateOf(false) }
+    OutlinedTextField(
+        value = value,
+        onValueChange = {},
+        label = { Text(label) },
+        modifier = Modifier.fillMaxWidth(),
+        enabled = enabled,
+        readOnly = true,
+        trailingIcon = {
+            IconButton(onClick = { if (enabled) showPicker = true }) {
+                Icon(Icons.Filled.DateRange, contentDescription = "Pick date")
+            }
+        }
+    )
+    if (showPicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = value.takeIf { it.isNotBlank() }?.let { parseIsoDateToMillis(it) }
+        )
+        DatePickerDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis -> onValueChange(formatMillisToIsoDate(millis)) }
+                    showPicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPicker = false }) { Text("Cancel") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+}
+
+private fun isoDateFormat(): SimpleDateFormat {
+    return SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+    }
+}
+
+private fun parseIsoDateToMillis(dateStr: String): Long? {
+    return try { isoDateFormat().parse(dateStr)?.time } catch (e: Exception) { null }
+}
+
+private fun formatMillisToIsoDate(millis: Long): String = isoDateFormat().format(Date(millis))

@@ -89,6 +89,14 @@ class AppRepository(private val context: Context) {
         } catch (e: Exception) { Result.failure(e) }
     }
 
+    suspend fun updateFamilyMember(memberId: Int, updates: Map<String, String>): Result<FamilyMember> {
+        return try {
+            val response = api.updateFamilyMember(memberId, updates)
+            if (response.isSuccessful && response.body() != null) Result.success(response.body()!!)
+            else Result.failure(Exception(backendErrorMessage(response)))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
     suspend fun createFamilyMember(request: CreateMemberRequest): Result<FamilyMember> {
         return try {
             val response = api.createFamilyMember(request)
