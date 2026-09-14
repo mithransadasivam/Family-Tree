@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.familytree.familytree.data.models.FamilyTree
 import com.familytree.familytree.data.repository.AppRepository
+import com.familytree.familytree.ui.components.BannerAd
 import com.familytree.familytree.ui.navigation.Screen
 import com.familytree.familytree.ui.theme.Primary
 import com.familytree.familytree.ui.theme.Surface
@@ -96,7 +97,12 @@ fun HomeScreen(navController: NavController) {
                 }
             )
         },
-        bottomBar = { BottomNavBar(navController = navController, currentRoute = Screen.Home.route) }
+        bottomBar = {
+            Column {
+                BannerAd(modifier = Modifier.fillMaxWidth())
+                BottomNavBar(navController = navController, currentRoute = Screen.Home.route)
+            }
+        }
     ) { padding ->
         if (isLoading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

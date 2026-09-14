@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.familytree.familytree.data.models.User
 import com.familytree.familytree.data.repository.AppRepository
+import com.familytree.familytree.ui.components.BannerAd
 import com.familytree.familytree.ui.theme.Primary
 import com.familytree.familytree.ui.theme.Surface
 import com.familytree.familytree.ui.theme.TextHint
@@ -66,7 +67,12 @@ fun ProfileScreen(navController: NavController) {
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Primary)
             )
         },
-        bottomBar = { BottomNavBar(navController = navController, currentRoute = "profile") }
+        bottomBar = {
+            Column {
+                BannerAd(modifier = Modifier.fillMaxWidth())
+                BottomNavBar(navController = navController, currentRoute = "profile")
+            }
+        }
     ) { padding ->
         user?.let { u ->
             Column(

@@ -66,6 +66,7 @@ import com.familytree.familytree.data.models.FamilyMember
 import com.familytree.familytree.data.models.Relationship
 import com.familytree.familytree.data.models.RelationshipType
 import com.familytree.familytree.data.repository.AppRepository
+import com.familytree.familytree.ui.components.BannerAd
 import com.familytree.familytree.ui.theme.Primary
 import com.familytree.familytree.ui.theme.Surface
 import com.familytree.familytree.ui.theme.TextHint
@@ -159,7 +160,8 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Primary)
             )
-        }
+        },
+        bottomBar = { BannerAd(modifier = Modifier.fillMaxWidth()) }
     ) { padding ->
         if (isLoading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
