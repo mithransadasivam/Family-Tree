@@ -1,5 +1,6 @@
 package com.familytree.familytree.ui.screens
 
+import android.widget.Toast
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -75,6 +76,9 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
     var generatedCode by remember { mutableStateOf("") }
     var showLeaveConfirm by remember { mutableStateOf(false) }
     var leaveErrorMessage by remember { mutableStateOf("") }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var deleteNameInput by remember { mutableStateOf("") }
+    var deleteErrorMessage by remember { mutableStateOf("") }
 
     // Hoisted here (rather than inside FamilyTreeCanvas) and backed by rememberSaveable so
     // zoom/pan survive navigating to a member profile and back. hasAutoFitted ensures the
@@ -158,6 +162,14 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
                                         }
                                     },
                                     onClick = { }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Delete Tree", color = Color.Red) },
+                                    onClick = {
+                                        showMenu = false
+                                        deleteNameInput = ""
+                                        showDeleteConfirm = true
+                                    }
                                 )
                             }
                             DropdownMenuItem(
@@ -333,6 +345,56 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
             title = { Text("Couldn't Leave Tree") },
             text = { Text(leaveErrorMessage) },
             confirmButton = { TextButton(onClick = { leaveErrorMessage = "" }) { Text("OK") } }
+        )
+    }
+
+    if (showDeleteConfirm) {
+        val treeName = tree?.tree_name ?: ""
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete Tree") },
+            text = {
+                Column {
+                    Text("This action cannot be undone. Type the tree name to confirm deletion.")
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = deleteNameInput,
+                        onValueChange = { deleteNameInput = it },
+                        label = { Text("Tree name") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirm = false
+                        scope.launch {
+                            val result = repository.deleteFamilyTree(treeId)
+                            if (result.isSuccess) {
+                                Toast.makeText(context, "Tree deleted successfully", Toast.LENGTH_SHORT).show()
+                                navController.navigate(Screen.Home.route) {
+                                    popUpTo(navController.graph.id) { inclusive = true }
+                                }
+                            } else {
+                                deleteErrorMessage = result.exceptionOrNull()?.message ?: "Failed to delete tree"
+                            }
+                        }
+                    },
+                    enabled = treeName.isNotEmpty() && deleteNameInput == treeName,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (deleteErrorMessage.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { deleteErrorMessage = "" },
+            title = { Text("Couldn't Delete Tree") },
+            text = { Text(deleteErrorMessage) },
+            confirmButton = { TextButton(onClick = { deleteErrorMessage = "" }) { Text("OK") } }
         )
     }
 }

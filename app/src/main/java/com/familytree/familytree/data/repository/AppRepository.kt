@@ -227,6 +227,14 @@ class AppRepository(private val context: Context) {
         } catch (e: Exception) { Result.failure(e) }
     }
 
+    suspend fun deleteFamilyTree(treeId: Int): Result<Unit> {
+        return try {
+            val response = api.deleteFamilyTree(treeId)
+            if (response.isSuccessful) Result.success(Unit)
+            else Result.failure(Exception(backendErrorMessage(response)))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
     suspend fun getMyRequests(): Result<List<JoinRequest>> {
         return try {
             val response = api.getMyJoinRequests()
