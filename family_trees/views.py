@@ -71,3 +71,21 @@ class FamilyTreeDetailView(APIView):
         tree.is_active = False
         tree.save()
         return Response({'message': 'Tree deleted'}, status=status.HTTP_200_OK)
+
+
+class LeaveTreeView(APIView):
+    def post(self, request, tree_id):
+        user = get_current_user(request)
+        try:
+            tree = FamilyTree.objects.get(id=tree_id, is_active=True)
+        except FamilyTree.DoesNotExist:
+            return Response({'error': 'Tree not found'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            membership = TreeMember.objects.get(tree=tree, user=user)
+        except TreeMember.DoesNotExist:
+            return Response({'error': 'Not a member'}, status=status.HTTP_403_FORBIDDEN)
+        if membership.role == 'owner':
+            return Response({'error': 'The tree owner cannot leave the tree'}, status=status.HTTP_400_BAD_REQUEST)
+        membership.delete()
+        log_edit(tree, 'tree_member', user.id, user, f'{user.email} left the tree')
+        return Response({'message': f'You have left {tree.tree_name}'}, status=status.HTTP_200_OK)

@@ -55,6 +55,14 @@ class AppRepository(private val context: Context) {
         } catch (e: Exception) { Result.failure(e) }
     }
 
+    suspend fun getFamilyTree(treeId: Int): Result<FamilyTree> {
+        return try {
+            val response = api.getFamilyTree(treeId)
+            if (response.isSuccessful) Result.success(response.body()!!)
+            else Result.failure(Exception("Failed: ${response.code()}"))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
     suspend fun createFamilyTree(name: String, description: String): Result<FamilyTree> {
         return try {
             val response = api.createFamilyTree(CreateTreeRequest(name, description))
@@ -187,6 +195,14 @@ class AppRepository(private val context: Context) {
         return try {
             val response = api.updateJoinRequestStatus(requestId, UpdateJoinRequestStatusRequest("rejected"))
             if (response.isSuccessful) Result.success(response.body()!!)
+            else Result.failure(Exception("Failed: ${response.code()}"))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun leaveTree(treeId: Int): Result<Unit> {
+        return try {
+            val response = api.leaveTree(treeId)
+            if (response.isSuccessful) Result.success(Unit)
             else Result.failure(Exception("Failed: ${response.code()}"))
         } catch (e: Exception) { Result.failure(e) }
     }

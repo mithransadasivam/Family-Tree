@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CenterFocusStrong
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -34,8 +35,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -43,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.familytree.familytree.data.models.CreateMemberRequest
 import com.familytree.familytree.data.models.FamilyMember
+import com.familytree.familytree.data.models.FamilyTree
 import com.familytree.familytree.data.models.Relationship
 import com.familytree.familytree.data.repository.AppRepository
 import com.familytree.familytree.ui.navigation.Screen
@@ -65,6 +69,14 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
     var newPhone by remember { mutableStateOf("") }
     var newBirthPlace by remember { mutableStateOf("") }
 
+    var tree by remember { mutableStateOf<FamilyTree?>(null) }
+    var isOwner by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
+    var showGenerateCodeDialog by remember { mutableStateOf(false) }
+    var generatedCode by remember { mutableStateOf("") }
+    var showLeaveConfirm by remember { mutableStateOf(false) }
+    var leaveErrorMessage by remember { mutableStateOf("") }
+
     // Hoisted here (rather than inside FamilyTreeCanvas) and backed by rememberSaveable so
     // zoom/pan survive navigating to a member profile and back. hasAutoFitted ensures the
     // "fit all members on screen" calculation only runs once per screen lifetime, not every
@@ -86,6 +98,14 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
 
     LaunchedEffect(treeId) { loadData() }
 
+    LaunchedEffect(treeId) {
+        val meResult = repository.getMe()
+        val treeResult = repository.getFamilyTree(treeId)
+        tree = treeResult.getOrNull()
+        val me = meResult.getOrNull()
+        isOwner = me != null && tree != null && tree?.owner?.id == me.id
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -98,6 +118,66 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
                 actions = {
                     IconButton(onClick = { showAddMember = true }) {
                         Icon(Icons.Default.Add, contentDescription = "Add", tint = Color.White)
+                    }
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Tree options", tint = Color.White)
+                        }
+                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                            if (isOwner) {
+                                DropdownMenuItem(
+                                    text = { Text("Generate Family Code") },
+                                    onClick = {
+                                        showMenu = false
+                                        scope.launch {
+                                            val result = repository.generateFamilyCode(treeId)
+                                            if (result.isSuccess) {
+                                                generatedCode = result.getOrNull()?.code ?: ""
+                                                showGenerateCodeDialog = true
+                                            }
+                                        }
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Require Approval")
+                                            Spacer(Modifier.width(8.dp))
+                                            Switch(
+                                                checked = tree?.approval_required ?: true,
+                                                onCheckedChange = { checked ->
+                                                    scope.launch {
+                                                        val result = repository.updateTreeApprovalRequired(treeId, checked)
+                                                        result.getOrNull()?.let { tree = it }
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    },
+                                    onClick = { }
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text("Edit History") },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.EditHistory.createRoute(treeId))
+                                }
+                            )
+                            if (!isOwner) {
+                                DropdownMenuItem(
+                                    text = { Text("Leave Tree", color = Color.Red) },
+                                    onClick = {
+                                        showMenu = false
+                                        showLeaveConfirm = true
+                                    }
+                                )
+                            }
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Primary)
@@ -194,6 +274,61 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
                 }) { Text("Add") }
             },
             dismissButton = { TextButton(onClick = { showAddMember = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (showGenerateCodeDialog) {
+        val clipboardManager = LocalClipboardManager.current
+        AlertDialog(
+            onDismissRequest = { showGenerateCodeDialog = false },
+            title = { Text("Family Code") },
+            text = {
+                Column {
+                    Text("Share this code so others can request to join the tree:")
+                    Spacer(Modifier.height(12.dp))
+                    Text(generatedCode, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Primary)
+                }
+            },
+            confirmButton = {
+                Button(onClick = { clipboardManager.setText(AnnotatedString(generatedCode)) }) { Text("Copy") }
+            },
+            dismissButton = { TextButton(onClick = { showGenerateCodeDialog = false }) { Text("Close") } }
+        )
+    }
+
+    if (showLeaveConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLeaveConfirm = false },
+            title = { Text("Leave Tree") },
+            text = { Text("Are you sure you want to leave this family tree? You'll need a new family code to rejoin.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLeaveConfirm = false
+                        scope.launch {
+                            val result = repository.leaveTree(treeId)
+                            if (result.isSuccess) {
+                                navController.navigate(Screen.Home.route) {
+                                    popUpTo(navController.graph.id) { inclusive = true }
+                                }
+                            } else {
+                                leaveErrorMessage = result.exceptionOrNull()?.message ?: "Failed to leave tree"
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) { Text("Leave") }
+            },
+            dismissButton = { TextButton(onClick = { showLeaveConfirm = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (leaveErrorMessage.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { leaveErrorMessage = "" },
+            title = { Text("Couldn't Leave Tree") },
+            text = { Text(leaveErrorMessage) },
+            confirmButton = { TextButton(onClick = { leaveErrorMessage = "" }) { Text("OK") } }
         )
     }
 }

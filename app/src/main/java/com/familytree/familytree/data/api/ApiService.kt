@@ -27,6 +27,9 @@ interface ApiService {
     @DELETE("family-trees/{id}/")
     suspend fun deleteFamilyTree(@Path("id") id: Int): Response<Unit>
 
+    @POST("family-trees/{id}/leave/")
+    suspend fun leaveTree(@Path("id") id: Int): Response<Unit>
+
     @GET("family-members/")
     suspend fun getFamilyMembers(@Query("tree_id") treeId: Int): Response<List<FamilyMember>>
 
