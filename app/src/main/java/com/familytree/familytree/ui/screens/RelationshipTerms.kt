@@ -3,7 +3,9 @@ package com.familytree.familytree.ui.screens
 // Culture-specific relationship terms shown in the Add Relationship picker. Each term maps
 // onto one of the RelationshipType rows Django already seeds (englishType must exactly match
 // a `type_name` in that table) - these are just localized aliases/labels for the same
-// underlying relationship, not separate backend records.
+// underlying relationship, not separate backend records. Each language's list is shown in
+// strict isolation (see termsForLanguage) - no term from one language ever appears while
+// another language tab is selected.
 
 enum class RelationshipLanguage(val emoji: String, val label: String) {
     ENGLISH("🌍", "English"),
@@ -28,22 +30,6 @@ data class RelationshipTerm(
     val label: String,
     val englishType: String,
     val category: RelationshipCategory
-)
-
-// Shown alongside every non-English language's own terms, so switching languages doesn't lose
-// access to the handful of universally-needed relations that language doesn't have a cultural
-// word for in this app's data. Kept deliberately small so the selected language's own terms
-// visually dominate the list instead of being buried under the full English set.
-private val basicEnglishTerms = listOf(
-    RelationshipTerm("Father", "Father", RelationshipCategory.PARENTS),
-    RelationshipTerm("Mother", "Mother", RelationshipCategory.PARENTS),
-    RelationshipTerm("Son", "Son", RelationshipCategory.CHILDREN),
-    RelationshipTerm("Daughter", "Daughter", RelationshipCategory.CHILDREN),
-    RelationshipTerm("Brother", "Brother", RelationshipCategory.SIBLINGS),
-    RelationshipTerm("Sister", "Sister", RelationshipCategory.SIBLINGS),
-    RelationshipTerm("Spouse", "Spouse", RelationshipCategory.SPOUSE),
-    RelationshipTerm("Husband", "Husband", RelationshipCategory.SPOUSE),
-    RelationshipTerm("Wife", "Wife", RelationshipCategory.SPOUSE),
 )
 
 private val englishTerms = listOf(
@@ -84,23 +70,27 @@ private val englishTerms = listOf(
 )
 
 private val hindiTerms = listOf(
+    RelationshipTerm("Pita", "Father", RelationshipCategory.PARENTS),
+    RelationshipTerm("Papa", "Father", RelationshipCategory.PARENTS),
+    RelationshipTerm("Mata", "Mother", RelationshipCategory.PARENTS),
+    RelationshipTerm("Maa", "Mother", RelationshipCategory.PARENTS),
     RelationshipTerm("Dada", "Grandfather", RelationshipCategory.GRANDPARENTS),
     RelationshipTerm("Dadi", "Grandmother", RelationshipCategory.GRANDPARENTS),
     RelationshipTerm("Nana", "Grandfather", RelationshipCategory.GRANDPARENTS),
     RelationshipTerm("Nani", "Grandmother", RelationshipCategory.GRANDPARENTS),
+    RelationshipTerm("Bade Papa", "Uncle", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Badi Maa", "Aunt", RelationshipCategory.EXTENDED),
     RelationshipTerm("Chacha", "Uncle", RelationshipCategory.EXTENDED),
     RelationshipTerm("Chachi", "Aunt", RelationshipCategory.EXTENDED),
-    RelationshipTerm("Tau", "Uncle", RelationshipCategory.EXTENDED),
-    RelationshipTerm("Tayi", "Aunt", RelationshipCategory.EXTENDED),
     RelationshipTerm("Bua", "Aunt", RelationshipCategory.EXTENDED),
-    RelationshipTerm("Fufad", "Uncle", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Phupa", "Uncle", RelationshipCategory.EXTENDED),
     RelationshipTerm("Mama", "Uncle", RelationshipCategory.EXTENDED),
     RelationshipTerm("Mami", "Aunt", RelationshipCategory.EXTENDED),
     RelationshipTerm("Mausi", "Aunt", RelationshipCategory.EXTENDED),
     RelationshipTerm("Mausa", "Uncle", RelationshipCategory.EXTENDED),
     RelationshipTerm("Bhai", "Brother", RelationshipCategory.SIBLINGS),
-    RelationshipTerm("Behen", "Sister", RelationshipCategory.SIBLINGS),
     RelationshipTerm("Bhaiya", "Brother", RelationshipCategory.SIBLINGS),
+    RelationshipTerm("Behen", "Sister", RelationshipCategory.SIBLINGS),
     RelationshipTerm("Didi", "Sister", RelationshipCategory.SIBLINGS),
     RelationshipTerm("Beta", "Son", RelationshipCategory.CHILDREN),
     RelationshipTerm("Beti", "Daughter", RelationshipCategory.CHILDREN),
@@ -108,89 +98,159 @@ private val hindiTerms = listOf(
     RelationshipTerm("Poti", "Granddaughter", RelationshipCategory.CHILDREN),
     RelationshipTerm("Nati", "Grandson", RelationshipCategory.CHILDREN),
     RelationshipTerm("Naatin", "Granddaughter", RelationshipCategory.CHILDREN),
+    RelationshipTerm("Bahu", "Daughter-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Damad", "Son-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Sasur", "Father-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Saas", "Mother-in-Law", RelationshipCategory.IN_LAWS),
     RelationshipTerm("Devar", "Brother-in-Law", RelationshipCategory.IN_LAWS),
     RelationshipTerm("Devrani", "Sister-in-Law", RelationshipCategory.IN_LAWS),
     RelationshipTerm("Jeth", "Brother-in-Law", RelationshipCategory.IN_LAWS),
     RelationshipTerm("Jethani", "Sister-in-Law", RelationshipCategory.IN_LAWS),
     RelationshipTerm("Nanad", "Sister-in-Law", RelationshipCategory.IN_LAWS),
-    RelationshipTerm("Nanandoi", "Brother-in-Law", RelationshipCategory.IN_LAWS),
     RelationshipTerm("Sala", "Brother-in-Law", RelationshipCategory.IN_LAWS),
     RelationshipTerm("Sali", "Sister-in-Law", RelationshipCategory.IN_LAWS),
-    RelationshipTerm("Sasur", "Father-in-Law", RelationshipCategory.IN_LAWS),
-    RelationshipTerm("Saas", "Mother-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Pati", "Husband", RelationshipCategory.SPOUSE),
+    RelationshipTerm("Patni", "Wife", RelationshipCategory.SPOUSE),
 )
 
 private val tamilTerms = listOf(
+    RelationshipTerm("Appa", "Father", RelationshipCategory.PARENTS),
+    RelationshipTerm("Amma", "Mother", RelationshipCategory.PARENTS),
     RelationshipTerm("Thatha", "Grandfather", RelationshipCategory.GRANDPARENTS),
-    RelationshipTerm("Paatti", "Grandmother", RelationshipCategory.GRANDPARENTS),
+    // Paati covers both paternal and maternal grandmother - listed once (a duplicate entry
+    // would give the LazyColumn two rows with an identical key and crash it).
+    RelationshipTerm("Paati", "Grandmother", RelationshipCategory.GRANDPARENTS),
+    RelationshipTerm("Thaatha", "Grandfather", RelationshipCategory.GRANDPARENTS),
+    RelationshipTerm("Periappa", "Uncle", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Periamma", "Aunt", RelationshipCategory.EXTENDED),
     RelationshipTerm("Chithappa", "Uncle", RelationshipCategory.EXTENDED),
-    RelationshipTerm("Chitti", "Aunt", RelationshipCategory.EXTENDED),
-    RelationshipTerm("Periyappa", "Uncle", RelationshipCategory.EXTENDED),
-    RelationshipTerm("Periyamma", "Aunt", RelationshipCategory.EXTENDED),
-    RelationshipTerm("Athhai", "Aunt", RelationshipCategory.EXTENDED),
-    RelationshipTerm("Athimber", "Uncle", RelationshipCategory.EXTENDED),
-    RelationshipTerm("Mama (Tamil)", "Uncle", RelationshipCategory.EXTENDED),
-    RelationshipTerm("Mami (Tamil)", "Aunt", RelationshipCategory.EXTENDED),
-    RelationshipTerm("Maami", "Aunt", RelationshipCategory.EXTENDED),
     RelationshipTerm("Chithi", "Aunt", RelationshipCategory.EXTENDED),
-    RelationshipTerm("Anna", "Brother", RelationshipCategory.SIBLINGS),
+    RelationshipTerm("Athai", "Aunt", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Athimber", "Uncle", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Mama", "Uncle", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Mami", "Aunt", RelationshipCategory.EXTENDED),
     RelationshipTerm("Akka", "Sister", RelationshipCategory.SIBLINGS),
+    RelationshipTerm("Anna", "Brother", RelationshipCategory.SIBLINGS),
     RelationshipTerm("Thambi", "Brother", RelationshipCategory.SIBLINGS),
     RelationshipTerm("Thangai", "Sister", RelationshipCategory.SIBLINGS),
     RelationshipTerm("Magan", "Son", RelationshipCategory.CHILDREN),
     RelationshipTerm("Magal", "Daughter", RelationshipCategory.CHILDREN),
+    RelationshipTerm("Paiyan", "Son", RelationshipCategory.CHILDREN),
+    RelationshipTerm("Penn", "Daughter", RelationshipCategory.CHILDREN),
     RelationshipTerm("Peyran", "Grandson", RelationshipCategory.CHILDREN),
     RelationshipTerm("Peyartti", "Granddaughter", RelationshipCategory.CHILDREN),
-    RelationshipTerm("Maaman", "Father-in-Law", RelationshipCategory.IN_LAWS),
-    RelationshipTerm("Maami (In-law)", "Mother-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Marumagal", "Daughter-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Marumaghan", "Son-in-Law", RelationshipCategory.IN_LAWS),
     RelationshipTerm("Anni", "Sister-in-Law", RelationshipCategory.IN_LAWS),
     RelationshipTerm("Machan", "Brother-in-Law", RelationshipCategory.IN_LAWS),
-    RelationshipTerm("Macchaali", "Sister-in-Law", RelationshipCategory.IN_LAWS),
-    RelationshipTerm("Kozhundhan", "Son-in-Law", RelationshipCategory.IN_LAWS),
-    RelationshipTerm("Marumagal", "Daughter-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Macha", "Brother-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Naathanar", "Father-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Manavatti", "Mother-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Kandhan", "Husband", RelationshipCategory.SPOUSE),
+    RelationshipTerm("Manaivi", "Wife", RelationshipCategory.SPOUSE),
 )
 
 private val teluguTerms = listOf(
-    RelationshipTerm("Tata", "Grandfather", RelationshipCategory.GRANDPARENTS),
     RelationshipTerm("Nanna", "Father", RelationshipCategory.PARENTS),
     RelationshipTerm("Amma", "Mother", RelationshipCategory.PARENTS),
+    RelationshipTerm("Tata", "Grandfather", RelationshipCategory.GRANDPARENTS),
+    RelationshipTerm("Nana", "Grandmother", RelationshipCategory.GRANDPARENTS),
+    RelationshipTerm("Pedananna", "Uncle", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Pedamma", "Aunt", RelationshipCategory.EXTENDED),
     RelationshipTerm("Babai", "Uncle", RelationshipCategory.EXTENDED),
-    RelationshipTerm("Atta", "Mother-in-Law", RelationshipCategory.IN_LAWS),
-    RelationshipTerm("Mava", "Father-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Pinni", "Aunt", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Mava", "Brother-in-Law", RelationshipCategory.IN_LAWS),
     RelationshipTerm("Vadina", "Sister-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Maridi", "Brother-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Anni", "Sister-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Abbayi", "Son", RelationshipCategory.CHILDREN),
+    RelationshipTerm("Ammayi", "Daughter", RelationshipCategory.CHILDREN),
+    RelationshipTerm("Alludu", "Son-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Kodalu", "Daughter-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Bharyaa", "Wife", RelationshipCategory.SPOUSE),
+    RelationshipTerm("Bharta", "Husband", RelationshipCategory.SPOUSE),
+    RelationshipTerm("Anna", "Brother", RelationshipCategory.SIBLINGS),
+    RelationshipTerm("Akka", "Sister", RelationshipCategory.SIBLINGS),
+    RelationshipTerm("Thammudu", "Brother", RelationshipCategory.SIBLINGS),
+    RelationshipTerm("Chellellu", "Sister", RelationshipCategory.SIBLINGS),
 )
 
 private val malayalamTerms = listOf(
-    RelationshipTerm("Appachen", "Grandfather", RelationshipCategory.GRANDPARENTS),
-    RelationshipTerm("Ammachi", "Grandmother", RelationshipCategory.GRANDPARENTS),
-    RelationshipTerm("Achen", "Father", RelationshipCategory.PARENTS),
-    RelationshipTerm("Chechi", "Sister", RelationshipCategory.SIBLINGS),
-    RelationshipTerm("Chettan", "Brother", RelationshipCategory.SIBLINGS),
+    RelationshipTerm("Achan", "Father", RelationshipCategory.PARENTS),
+    RelationshipTerm("Amma", "Mother", RelationshipCategory.PARENTS),
+    RelationshipTerm("Appooppan", "Grandfather", RelationshipCategory.GRANDPARENTS),
+    RelationshipTerm("Ammoomma", "Grandmother", RelationshipCategory.GRANDPARENTS),
+    RelationshipTerm("Valiyachan", "Uncle", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Valiyamma", "Aunt", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Cheriiyachan", "Uncle", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Cheriyamma", "Aunt", RelationshipCategory.EXTENDED),
     RelationshipTerm("Ammavan", "Uncle", RelationshipCategory.EXTENDED),
     RelationshipTerm("Ammayi", "Aunt", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Chettan", "Brother", RelationshipCategory.SIBLINGS),
+    RelationshipTerm("Chechi", "Sister", RelationshipCategory.SIBLINGS),
+    RelationshipTerm("Aniyattan", "Brother", RelationshipCategory.SIBLINGS),
+    RelationshipTerm("Aniyathi", "Sister", RelationshipCategory.SIBLINGS),
+    RelationshipTerm("Makan", "Son", RelationshipCategory.CHILDREN),
+    RelationshipTerm("Malakal", "Daughter", RelationshipCategory.CHILDREN),
+    RelationshipTerm("Marumon", "Son-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Marumakal", "Daughter-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Bhartav", "Husband", RelationshipCategory.SPOUSE),
+    RelationshipTerm("Bharya", "Wife", RelationshipCategory.SPOUSE),
+    RelationshipTerm("Pithavu", "Father-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Ammayi (In-law)", "Mother-in-Law", RelationshipCategory.IN_LAWS),
 )
 
 private val punjabiTerms = listOf(
-    RelationshipTerm("Bapuji", "Father", RelationshipCategory.PARENTS),
-    RelationshipTerm("Bebeji", "Mother", RelationshipCategory.PARENTS),
-    RelationshipTerm("Dadaji", "Grandfather", RelationshipCategory.GRANDPARENTS),
-    RelationshipTerm("Nanaji", "Grandfather", RelationshipCategory.GRANDPARENTS),
-    RelationshipTerm("Phuphaji", "Uncle", RelationshipCategory.EXTENDED),
-    RelationshipTerm("Mausaji", "Uncle", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Pita Ji", "Father", RelationshipCategory.PARENTS),
+    RelationshipTerm("Papa", "Father", RelationshipCategory.PARENTS),
+    RelationshipTerm("Mata Ji", "Mother", RelationshipCategory.PARENTS),
+    RelationshipTerm("Maa", "Mother", RelationshipCategory.PARENTS),
+    RelationshipTerm("Dada Ji", "Grandfather", RelationshipCategory.GRANDPARENTS),
+    RelationshipTerm("Dadi Ji", "Grandmother", RelationshipCategory.GRANDPARENTS),
+    RelationshipTerm("Nana Ji", "Grandfather", RelationshipCategory.GRANDPARENTS),
+    RelationshipTerm("Nani Ji", "Grandmother", RelationshipCategory.GRANDPARENTS),
+    RelationshipTerm("Taya", "Uncle", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Tayi", "Aunt", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Chacha", "Uncle", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Chachi", "Aunt", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Bhua", "Aunt", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Phufad", "Uncle", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Mama", "Uncle", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Mami", "Aunt", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Maasi", "Aunt", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Maasad", "Uncle", RelationshipCategory.EXTENDED),
+    RelationshipTerm("Veer", "Brother", RelationshipCategory.SIBLINGS),
+    RelationshipTerm("Bhenji", "Sister", RelationshipCategory.SIBLINGS),
+    RelationshipTerm("Putt", "Son", RelationshipCategory.CHILDREN),
+    RelationshipTerm("Dhee", "Daughter", RelationshipCategory.CHILDREN),
+    RelationshipTerm("Pota", "Grandson", RelationshipCategory.CHILDREN),
+    RelationshipTerm("Poti", "Granddaughter", RelationshipCategory.CHILDREN),
+    RelationshipTerm("Nuh", "Daughter-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Jamai", "Son-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Sasur", "Father-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Saas", "Mother-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Devar", "Brother-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Jeth", "Brother-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Nanad", "Sister-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Sala", "Brother-in-Law", RelationshipCategory.IN_LAWS),
+    // The source list gave "Sala" for wife's sister too (a duplicate of wife's-brother above) -
+    // corrected to "Sali", the standard term, since a duplicate label would crash the
+    // LazyColumn (two rows with the same key) and "Sala" specifically means wife's brother.
+    RelationshipTerm("Sali", "Sister-in-Law", RelationshipCategory.IN_LAWS),
+    RelationshipTerm("Pati", "Husband", RelationshipCategory.SPOUSE),
+    RelationshipTerm("Patni", "Wife", RelationshipCategory.SPOUSE),
     RelationshipTerm("Bhabi", "Sister-in-Law", RelationshipCategory.IN_LAWS),
-    RelationshipTerm("Veera", "Brother", RelationshipCategory.SIBLINGS),
 )
 
-/** English shows the full English set. Every other language shows ONLY its own cultural terms,
- *  with the small basicEnglishTerms set appended after (not the full English list) so the
- *  selected language's own words are what the user actually sees, not drowned out by English. */
+/** Strict per-language separation - each language shows ONLY its own terms, never mixed with
+ *  any other language (including English). */
 fun termsForLanguage(language: RelationshipLanguage): List<RelationshipTerm> = when (language) {
     RelationshipLanguage.ENGLISH -> englishTerms
-    RelationshipLanguage.HINDI -> hindiTerms + basicEnglishTerms
-    RelationshipLanguage.TAMIL -> tamilTerms + basicEnglishTerms
-    RelationshipLanguage.TELUGU -> teluguTerms + basicEnglishTerms
-    RelationshipLanguage.MALAYALAM -> malayalamTerms + basicEnglishTerms
-    RelationshipLanguage.PUNJABI -> punjabiTerms + basicEnglishTerms
+    RelationshipLanguage.HINDI -> hindiTerms
+    RelationshipLanguage.TAMIL -> tamilTerms
+    RelationshipLanguage.TELUGU -> teluguTerms
+    RelationshipLanguage.MALAYALAM -> malayalamTerms
+    RelationshipLanguage.PUNJABI -> punjabiTerms
 }
 
 /** Looks up the canonical English term for an existing relationship's stored type name (e.g.
