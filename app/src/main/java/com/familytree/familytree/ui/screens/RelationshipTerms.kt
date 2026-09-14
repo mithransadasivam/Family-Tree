@@ -192,3 +192,9 @@ fun termsForLanguage(language: RelationshipLanguage): List<RelationshipTerm> = w
     RelationshipLanguage.MALAYALAM -> malayalamTerms + basicEnglishTerms
     RelationshipLanguage.PUNJABI -> punjabiTerms + basicEnglishTerms
 }
+
+/** Looks up the canonical English term for an existing relationship's stored type name (e.g.
+ *  "Grandfather"), used to pre-fill the picker when editing - the backend only ever stores the
+ *  canonical English type, not which cultural label was originally chosen, so editing always
+ *  re-opens on the English tab regardless of what language the relationship was created in. */
+fun findEnglishTerm(englishType: String): RelationshipTerm? = englishTerms.find { it.englishType == englishType }

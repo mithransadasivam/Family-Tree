@@ -97,6 +97,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
     var relSearchQuery by remember { mutableStateOf("") }
     var selectedTerm by remember { mutableStateOf<RelationshipTerm?>(null) }
     var collapsedCategories by remember { mutableStateOf<Set<RelationshipCategory>>(emptySet()) }
+    var editingRelationshipId by remember { mutableStateOf<Int?>(null) }
 
     var showEditSheet by remember { mutableStateOf(false) }
     var editFirstName by remember { mutableStateOf("") }
@@ -122,6 +123,26 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
         editDeathPlace = m.death_place
         editError = ""
         showEditSheet = true
+    }
+
+    fun openAddRelSheet() {
+        selectedMemberId = 0
+        relLanguage = RelationshipLanguage.ENGLISH
+        relSearchQuery = ""
+        collapsedCategories = emptySet()
+        selectedTerm = null
+        editingRelationshipId = null
+        showAddRel = true
+    }
+
+    fun openEditRelSheet(rel: Relationship) {
+        selectedMemberId = if (rel.member_1 == memberId) rel.member_2 else rel.member_1
+        relLanguage = RelationshipLanguage.ENGLISH
+        relSearchQuery = ""
+        collapsedCategories = emptySet()
+        selectedTerm = findEnglishTerm(rel.relationship_type_name)
+        editingRelationshipId = rel.id
+        showAddRel = true
     }
 
     LaunchedEffect(memberId) {
@@ -245,6 +266,9 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                                     Text(other?.let { "${it.first_name} ${it.last_name}" } ?: "Unknown")
                                     Text(rel.relationship_type_name, color = Primary, fontSize = 11.sp)
                                 }
+                                IconButton(onClick = { openEditRelSheet(rel) }) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Edit relationship", tint = Primary)
+                                }
                                 IconButton(onClick = {
                                     scope.launch {
                                         repository.deleteRelationship(rel.id)
@@ -261,7 +285,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                     }
                     item {
                         OutlinedButton(
-                            onClick = { showAddRel = true },
+                            onClick = { openAddRelSheet() },
                             modifier = Modifier.fillMaxWidth()
                         ) { Text("+ Add Relationship") }
                     }
@@ -279,6 +303,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
             selectedTerm = null
             relSearchQuery = ""
             relLanguage = RelationshipLanguage.ENGLISH
+            editingRelationshipId = null
         }
 
         val visibleTerms = remember(relLanguage, relSearchQuery) {
@@ -298,7 +323,11 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
             sheetState = sheetState
         ) {
             Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-                Text("Add Relationship", fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    if (editingRelationshipId != null) "Edit Relationship" else "Add Relationship",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium
+                )
                 Spacer(Modifier.height(12.dp))
 
                 // Sentence preview
@@ -446,8 +475,12 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                         onClick = {
                             val term = selectedTerm ?: return@Button
                             val relType = relTypes.find { it.type_name == term.englishType } ?: return@Button
+                            val relIdBeingEdited = editingRelationshipId
                             scope.launch {
                                 member?.let { m ->
+                                    if (relIdBeingEdited != null) {
+                                        repository.deleteRelationship(relIdBeingEdited)
+                                    }
                                     repository.createRelationship(
                                         CreateRelationshipRequest(
                                             tree = m.tree,
@@ -461,11 +494,14 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                                         ?.filter { it.member_1 == memberId || it.member_2 == memberId }
                                         ?: emptyList()
                                     closeAddRel()
+                                    if (relIdBeingEdited != null) {
+                                        snackbarHostState.showSnackbar("Relationship updated")
+                                    }
                                 }
                             }
                         },
                         enabled = selectedTerm != null
-                    ) { Text("Add") }
+                    ) { Text(if (editingRelationshipId != null) "Save" else "Add") }
                 }
             }
         }
