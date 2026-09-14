@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,9 +25,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -69,7 +73,9 @@ fun HomeScreen(navController: NavController) {
     var newTreeDesc by remember { mutableStateOf("") }
     var joinCode by remember { mutableStateOf("") }
     var joinMessage by remember { mutableStateOf("") }
-    var joinResultMessage by remember { mutableStateOf("") }
+    var isSubmittingJoin by remember { mutableStateOf(false) }
+    var joinError by remember { mutableStateOf("") }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
         val result = repository.getFamilyTrees()
@@ -78,6 +84,7 @@ fun HomeScreen(navController: NavController) {
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("My Family Trees", color = Color.White) },
@@ -100,16 +107,6 @@ fun HomeScreen(navController: NavController) {
                 modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (joinResultMessage.isNotEmpty()) {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth().clickable { joinResultMessage = "" },
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F3EC))
-                        ) {
-                            Text(joinResultMessage, color = Color(0xFF2E7D5B), modifier = Modifier.padding(12.dp))
-                        }
-                    }
-                }
                 if (trees.isEmpty()) {
                     item {
                         Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
@@ -195,41 +192,72 @@ fun HomeScreen(navController: NavController) {
 
         if (showJoinDialog) {
             AlertDialog(
-                onDismissRequest = { showJoinDialog = false },
+                onDismissRequest = { if (!isSubmittingJoin) { showJoinDialog = false; joinError = "" } },
                 title = { Text("Join Family Tree") },
                 text = {
                     Column {
-                        OutlinedTextField(value = joinCode, onValueChange = { joinCode = it.uppercase() }, label = { Text("Family Code") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(
+                            value = joinCode,
+                            onValueChange = { joinCode = it.uppercase() },
+                            label = { Text("Family Code") },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isSubmittingJoin
+                        )
                         Spacer(Modifier.height(8.dp))
                         OutlinedTextField(
                             value = joinMessage,
                             onValueChange = { joinMessage = it },
                             label = { Text("Introduce yourself to the tree owner") },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isSubmittingJoin
                         )
+                        if (joinError.isNotEmpty()) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(joinError, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                        }
+                        if (isSubmittingJoin) {
+                            Spacer(Modifier.height(12.dp))
+                            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = Primary, modifier = Modifier.size(28.dp))
+                            }
+                        }
                     }
                 },
                 confirmButton = {
-                    Button(onClick = {
-                        scope.launch {
-                            val result = repository.submitJoinRequest(joinCode, joinMessage)
-                            if (result.isSuccess) {
-                                val body = result.getOrNull()!!
-                                joinResultMessage = if (body.auto_approved) {
-                                    val refreshed = repository.getFamilyTrees()
-                                    if (refreshed.isSuccess) trees = refreshed.getOrNull() ?: emptyList()
-                                    body.message
+                    Button(
+                        onClick = {
+                            joinError = ""
+                            isSubmittingJoin = true
+                            scope.launch {
+                                val result = repository.submitJoinRequest(joinCode, joinMessage)
+                                isSubmittingJoin = false
+                                if (result.isSuccess) {
+                                    val body = result.getOrNull()!!
+                                    val message = if (body.auto_approved) {
+                                        val refreshed = repository.getFamilyTrees()
+                                        if (refreshed.isSuccess) trees = refreshed.getOrNull() ?: emptyList()
+                                        body.message
+                                    } else {
+                                        "Request sent! The tree owner will review your request."
+                                    }
+                                    showJoinDialog = false
+                                    joinCode = ""
+                                    joinMessage = ""
+                                    snackbarHostState.showSnackbar(message)
                                 } else {
-                                    "Request sent! The tree owner will review your request."
+                                    joinError = result.exceptionOrNull()?.message ?: "Something went wrong. Please try again."
                                 }
-                                showJoinDialog = false
-                                joinCode = ""
-                                joinMessage = ""
                             }
-                        }
-                    }) { Text("Send Request") }
+                        },
+                        enabled = !isSubmittingJoin && joinCode.isNotBlank()
+                    ) { Text("Send Request") }
                 },
-                dismissButton = { TextButton(onClick = { showJoinDialog = false }) { Text("Cancel") } }
+                dismissButton = {
+                    TextButton(
+                        onClick = { showJoinDialog = false; joinError = "" },
+                        enabled = !isSubmittingJoin
+                    ) { Text("Cancel") }
+                }
             )
         }
     }

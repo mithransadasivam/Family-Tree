@@ -6,6 +6,8 @@ import com.familytree.familytree.data.api.RetrofitClient
 import com.familytree.familytree.data.api.TokenManager
 import com.familytree.familytree.data.api.dataStore
 import com.familytree.familytree.data.models.*
+import org.json.JSONObject
+import retrofit2.Response
 
 class AppRepository(private val context: Context) {
     private val api = RetrofitClient.create(context)
@@ -170,9 +172,19 @@ class AppRepository(private val context: Context) {
     suspend fun submitJoinRequest(code: String, message: String): Result<SubmitJoinRequestResponse> {
         return try {
             val response = api.submitJoinRequest(SubmitJoinRequestRequest(code, message))
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Failed: ${response.code()}"))
+            if (response.isSuccessful && response.body() != null) Result.success(response.body()!!)
+            else Result.failure(Exception(backendErrorMessage(response)))
         } catch (e: Exception) { Result.failure(e) }
+    }
+
+    // The Django views return {"error": "..."} bodies with human-readable messages (invalid
+    // code, already a member, etc.) - surface that instead of a bare status code where we can.
+    private fun backendErrorMessage(response: Response<*>): String {
+        val fallback = "Failed: ${response.code()}"
+        val body = response.errorBody()?.string() ?: return fallback
+        return try {
+            JSONObject(body).optString("error").takeIf { it.isNotBlank() } ?: fallback
+        } catch (e: Exception) { fallback }
     }
 
     suspend fun getPendingRequests(treeId: Int): Result<List<JoinRequest>> {
