@@ -112,7 +112,7 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Family Tree", color = Color.White) },
+                title = { Text(tree?.tree_name ?: "Loading...", color = Color.White) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
