@@ -49,10 +49,15 @@ fun EditHistoryScreen(navController: NavController, treeId: Int) {
     val repository = remember { AppRepository(context) }
     var history by remember { mutableStateOf<List<EditHistory>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    var loadError by remember { mutableStateOf("") }
 
     LaunchedEffect(treeId) {
         val result = repository.getEditHistory(treeId)
-        if (result.isSuccess) history = result.getOrNull() ?: emptyList()
+        if (result.isSuccess) {
+            history = result.getOrNull() ?: emptyList()
+        } else {
+            loadError = result.exceptionOrNull()?.message ?: "Failed to load edit history"
+        }
         isLoading = false
     }
 
@@ -69,12 +74,17 @@ fun EditHistoryScreen(navController: NavController, treeId: Int) {
             )
         }
     ) { padding ->
-        if (isLoading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        when {
+            isLoading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Primary)
             }
-        } else {
-            LazyColumn(
+            loadError.isNotEmpty() -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Text(loadError, color = TextHint)
+            }
+            history.isEmpty() -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Text("No edit history yet", color = TextHint)
+            }
+            else -> LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -95,7 +105,11 @@ fun EditHistoryScreen(navController: NavController, treeId: Int) {
                         Column {
                             Text(item.change_description, fontSize = 13.sp)
                             Text(
-                                "${item.edited_by.first_name} · ${item.edited_at.take(10)}",
+                                // edited_by is declared non-null in the model, but Gson will
+                                // still happily deserialize a null JSON value into it (e.g. a
+                                // history row whose editing user has since been removed) - guard
+                                // against that instead of crashing the screen.
+                                "${item.edited_by?.first_name ?: "Someone"} · ${item.edited_at.take(10)}",
                                 fontSize = 11.sp,
                                 color = TextHint
                             )

@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -27,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,21 +42,41 @@ import androidx.navigation.NavController
 import com.familytree.familytree.data.models.User
 import com.familytree.familytree.data.repository.AppRepository
 import com.familytree.familytree.ui.components.BannerAd
+import com.familytree.familytree.ui.navigation.Screen
 import com.familytree.familytree.ui.theme.Primary
 import com.familytree.familytree.ui.theme.Surface
 import com.familytree.familytree.ui.theme.TextHint
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(navController: NavController) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val repository = remember { AppRepository(context) }
     var user by remember { mutableStateOf<User?>(null) }
+    var isOwner by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(true) }
+    var loadError by remember { mutableStateOf("") }
 
-    LaunchedEffect(Unit) {
-        val result = repository.getMe()
-        if (result.isSuccess) user = result.getOrNull()
+    fun load() {
+        scope.launch {
+            isLoading = true
+            loadError = ""
+            val meResult = repository.getMe()
+            val me = meResult.getOrNull()
+            user = me
+            if (me != null) {
+                val treesResult = repository.getFamilyTrees()
+                isOwner = treesResult.getOrNull().orEmpty().any { it.owner.id == me.id }
+            } else {
+                loadError = meResult.exceptionOrNull()?.message ?: "Failed to load profile"
+            }
+            isLoading = false
+        }
     }
+
+    LaunchedEffect(Unit) { load() }
 
     Scaffold(
         topBar = {
@@ -70,33 +93,47 @@ fun ProfileScreen(navController: NavController) {
         bottomBar = {
             Column {
                 BannerAd(modifier = Modifier.fillMaxWidth())
-                BottomNavBar(navController = navController, currentRoute = "profile")
+                BottomNavBar(navController = navController, currentRoute = Screen.Profile.route)
             }
         }
     ) { padding ->
-        user?.let { u ->
-            Column(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Spacer(Modifier.height(20.dp))
-                Text("🙋", fontSize = 56.sp)
-                Text("${u.first_name} ${u.last_name}", fontSize = 20.sp, fontWeight = FontWeight.Medium)
-                Text("Owner", color = Primary, fontSize = 12.sp)
-                Spacer(Modifier.height(24.dp))
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Surface)
+        when {
+            isLoading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Primary)
+            }
+            user != null -> {
+                val u = user!!
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Column(Modifier.padding(16.dp)) {
-                        ProfileField("📧", "Email", u.email)
-                        ProfileField("📱", "Phone", u.phone.ifEmpty { "—" })
-                        ProfileField("📍", "Address", u.address.ifEmpty { "—" })
+                    Spacer(Modifier.height(20.dp))
+                    Text("🙋", fontSize = 56.sp)
+                    Text("${u.first_name} ${u.last_name}", fontSize = 20.sp, fontWeight = FontWeight.Medium)
+                    Text(if (isOwner) "Owner" else "Member", color = Primary, fontSize = 12.sp)
+                    Spacer(Modifier.height(24.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Surface)
+                    ) {
+                        Column(Modifier.padding(16.dp)) {
+                            ProfileField("📧", "Email", u.email)
+                            ProfileField("📱", "Phone", u.phone.ifEmpty { "—" })
+                            ProfileField("📍", "Address", u.address.ifEmpty { "—" })
+                        }
                     }
                 }
             }
-        } ?: Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = Primary)
+            else -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(loadError.ifBlank { "Couldn't load your profile" }, color = TextHint)
+                    Spacer(Modifier.height(12.dp))
+                    Button(
+                        onClick = { load() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Primary)
+                    ) { Text("Retry") }
+                }
+            }
         }
     }
 }

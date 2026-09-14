@@ -2,188 +2,147 @@ package com.familytree.familytree.data.repository
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
+import com.familytree.familytree.data.api.ApiService
 import com.familytree.familytree.data.api.RetrofitClient
 import com.familytree.familytree.data.api.TokenManager
 import com.familytree.familytree.data.api.dataStore
 import com.familytree.familytree.data.models.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONObject
 import retrofit2.Response
 
-class AppRepository(private val context: Context) {
-    private val api = RetrofitClient.create(context)
+class AppRepository(context: Context) {
+    // Always hold the application context, never the caller's (often an Activity/Compose)
+    // context - this instance is short-lived per screen, but the api/dataStore it wires up
+    // must not end up retaining a shorter-lived context past the screen's lifetime.
+    private val appContext = context.applicationContext
+    private val api = getApi(appContext)
 
-    suspend fun googleAuth(idToken: String): Result<AuthResponse> {
+    companion object {
+        // Retrofit/OkHttp build their own connection pool and dispatcher thread pool - building
+        // a new one on every `AppRepository(context)` (previously created fresh per screen via
+        // `remember { AppRepository(context) }`) wasted a full network stack per screen visit.
+        // One shared instance for the process lifetime is created here instead.
+        @Volatile
+        private var apiService: ApiService? = null
+
+        private fun getApi(context: Context): ApiService {
+            return apiService ?: synchronized(this) {
+                apiService ?: RetrofitClient.create(context.applicationContext).also { apiService = it }
+            }
+        }
+
+        // Set whenever any call comes back 401 (expired/invalid token) so the navigation layer
+        // can react in one place - clear the stale token and drop the user back at Login -
+        // instead of every screen having to notice and handle it individually.
+        private val _sessionExpired = MutableStateFlow(false)
+        val sessionExpired: StateFlow<Boolean> = _sessionExpired.asStateFlow()
+
+        fun clearSessionExpiredFlag() {
+            _sessionExpired.value = false
+        }
+    }
+
+    // Centralizes the isSuccessful/body-null/401 handling that used to be repeated (and
+    // sometimes force-unwrapped with `!!`) in every single method below - a 2xx response with a
+    // null/empty body no longer crashes with an unhelpful NullPointerException, and a 401 now
+    // flips the shared sessionExpired flag exactly once instead of being silently swallowed.
+    private suspend fun <T> apiCall(block: suspend () -> Response<T>): Result<T> {
         return try {
-            val response = api.googleAuth(mapOf("id_token" to idToken))
-            if (response.isSuccessful && response.body() != null) {
-                val auth = response.body()!!
-                saveToken(auth.tokens.access)
-                Result.success(auth)
+            val response = block()
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body != null) Result.success(body)
+                else Result.failure(Exception("Empty response from server"))
             } else {
-                Result.failure(Exception("Auth failed: ${response.code()}"))
+                if (response.code() == 401) _sessionExpired.value = true
+                Result.failure(Exception(backendErrorMessage(response)))
             }
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
+    private suspend fun apiCallUnit(block: suspend () -> Response<Unit>): Result<Unit> {
+        return try {
+            val response = block()
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                if (response.code() == 401) _sessionExpired.value = true
+                Result.failure(Exception(backendErrorMessage(response)))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun googleAuth(idToken: String): Result<AuthResponse> {
+        val result = apiCall { api.googleAuth(mapOf("id_token" to idToken)) }
+        result.getOrNull()?.let { saveToken(it.tokens.access) }
+        return result
+    }
+
     suspend fun saveToken(token: String) {
-        context.dataStore.edit { prefs ->
+        appContext.dataStore.edit { prefs ->
             prefs[TokenManager.TOKEN_KEY] = token
         }
     }
 
     suspend fun clearToken() {
-        context.dataStore.edit { prefs ->
+        appContext.dataStore.edit { prefs ->
             prefs.remove(TokenManager.TOKEN_KEY)
         }
     }
 
-    fun isLoggedIn(): Boolean = TokenManager.getToken(context) != null
+    fun isLoggedIn(): Boolean = TokenManager.getToken(appContext) != null
 
-    suspend fun getMe(): Result<User> {
-        return try {
-            val response = api.getMe()
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun getMe(): Result<User> = apiCall { api.getMe() }
 
-    suspend fun getFamilyTrees(): Result<List<FamilyTree>> {
-        return try {
-            val response = api.getFamilyTrees()
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun updateMe(updates: Map<String, String>): Result<User> = apiCall { api.updateMe(updates) }
 
-    suspend fun getFamilyTree(treeId: Int): Result<FamilyTree> {
-        return try {
-            val response = api.getFamilyTree(treeId)
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun getFamilyTrees(): Result<List<FamilyTree>> = apiCall { api.getFamilyTrees() }
 
-    suspend fun createFamilyTree(name: String, description: String): Result<FamilyTree> {
-        return try {
-            val response = api.createFamilyTree(CreateTreeRequest(name, description))
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun getFamilyTree(treeId: Int): Result<FamilyTree> = apiCall { api.getFamilyTree(treeId) }
 
-    suspend fun getFamilyMembers(treeId: Int): Result<List<FamilyMember>> {
-        return try {
-            val response = api.getFamilyMembers(treeId)
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun createFamilyTree(name: String, description: String): Result<FamilyTree> =
+        apiCall { api.createFamilyTree(CreateTreeRequest(name, description)) }
 
-    suspend fun getFamilyMember(memberId: Int): Result<FamilyMember> {
-        return try {
-            val response = api.getFamilyMember(memberId)
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun getFamilyMembers(treeId: Int): Result<List<FamilyMember>> = apiCall { api.getFamilyMembers(treeId) }
 
-    suspend fun updateFamilyMember(memberId: Int, updates: Map<String, String>): Result<FamilyMember> {
-        return try {
-            val response = api.updateFamilyMember(memberId, updates)
-            if (response.isSuccessful && response.body() != null) Result.success(response.body()!!)
-            else Result.failure(Exception(backendErrorMessage(response)))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun getFamilyMember(memberId: Int): Result<FamilyMember> = apiCall { api.getFamilyMember(memberId) }
 
-    suspend fun createFamilyMember(request: CreateMemberRequest): Result<FamilyMember> {
-        return try {
-            val response = api.createFamilyMember(request)
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun updateFamilyMember(memberId: Int, updates: Map<String, String>): Result<FamilyMember> =
+        apiCall { api.updateFamilyMember(memberId, updates) }
 
-    suspend fun deleteFamilyMember(memberId: Int): Result<Unit> {
-        return try {
-            val response = api.deleteFamilyMember(memberId)
-            if (response.isSuccessful) Result.success(Unit)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun createFamilyMember(request: CreateMemberRequest): Result<FamilyMember> =
+        apiCall { api.createFamilyMember(request) }
 
-    suspend fun getRelationships(treeId: Int): Result<List<Relationship>> {
-        return try {
-            val response = api.getRelationships(treeId)
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun deleteFamilyMember(memberId: Int): Result<Unit> = apiCallUnit { api.deleteFamilyMember(memberId) }
 
-    suspend fun createRelationship(request: CreateRelationshipRequest): Result<Relationship> {
-        return try {
-            val response = api.createRelationship(request)
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun getRelationships(treeId: Int): Result<List<Relationship>> = apiCall { api.getRelationships(treeId) }
 
-    suspend fun deleteRelationship(relId: Int): Result<Unit> {
-        return try {
-            val response = api.deleteRelationship(relId)
-            if (response.isSuccessful) Result.success(Unit)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun createRelationship(request: CreateRelationshipRequest): Result<Relationship> =
+        apiCall { api.createRelationship(request) }
 
-    suspend fun getRelationshipTypes(): Result<List<RelationshipType>> {
-        return try {
-            val response = api.getRelationshipTypes()
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun deleteRelationship(relId: Int): Result<Unit> = apiCallUnit { api.deleteRelationship(relId) }
 
-    suspend fun generateFamilyCode(treeId: Int): Result<FamilyCodeResponse> {
-        return try {
-            val response = api.generateFamilyCode(FamilyCodeRequest(treeId))
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun getRelationshipTypes(): Result<List<RelationshipType>> = apiCall { api.getRelationshipTypes() }
 
-    suspend fun redeemFamilyCode(code: String): Result<FamilyTree> {
-        return try {
-            val response = api.redeemFamilyCode(RedeemCodeRequest(code))
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun generateFamilyCode(treeId: Int): Result<FamilyCodeResponse> =
+        apiCall { api.generateFamilyCode(FamilyCodeRequest(treeId)) }
 
-    suspend fun getEditHistory(treeId: Int): Result<List<EditHistory>> {
-        return try {
-            val response = api.getEditHistory(treeId)
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun redeemFamilyCode(code: String): Result<FamilyTree> = apiCall { api.redeemFamilyCode(RedeemCodeRequest(code)) }
 
-    suspend fun updateTreeApprovalRequired(treeId: Int, required: Boolean): Result<FamilyTree> {
-        return try {
-            val response = api.updateTreeSettings(treeId, UpdateTreeSettingsRequest(required))
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun getEditHistory(treeId: Int): Result<List<EditHistory>> = apiCall { api.getEditHistory(treeId) }
 
-    suspend fun submitJoinRequest(code: String, message: String): Result<SubmitJoinRequestResponse> {
-        return try {
-            val response = api.submitJoinRequest(SubmitJoinRequestRequest(code, message))
-            if (response.isSuccessful && response.body() != null) Result.success(response.body()!!)
-            else Result.failure(Exception(backendErrorMessage(response)))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun updateTreeApprovalRequired(treeId: Int, required: Boolean): Result<FamilyTree> =
+        apiCall { api.updateTreeSettings(treeId, UpdateTreeSettingsRequest(required)) }
+
+    suspend fun submitJoinRequest(code: String, message: String): Result<SubmitJoinRequestResponse> =
+        apiCall { api.submitJoinRequest(SubmitJoinRequestRequest(code, message)) }
 
     // The Django views return {"error": "..."} bodies with human-readable messages (invalid
     // code, already a member, etc.) - surface that instead of a bare status code where we can.
@@ -195,51 +154,17 @@ class AppRepository(private val context: Context) {
         } catch (e: Exception) { fallback }
     }
 
-    suspend fun getPendingRequests(treeId: Int): Result<List<JoinRequest>> {
-        return try {
-            val response = api.getPendingRequests(treeId)
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun getPendingRequests(treeId: Int): Result<List<JoinRequest>> = apiCall { api.getPendingRequests(treeId) }
 
-    suspend fun approveRequest(requestId: Int): Result<JoinRequest> {
-        return try {
-            val response = api.updateJoinRequestStatus(requestId, UpdateJoinRequestStatusRequest("approved"))
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun approveRequest(requestId: Int): Result<JoinRequest> =
+        apiCall { api.updateJoinRequestStatus(requestId, UpdateJoinRequestStatusRequest("approved")) }
 
-    suspend fun rejectRequest(requestId: Int): Result<JoinRequest> {
-        return try {
-            val response = api.updateJoinRequestStatus(requestId, UpdateJoinRequestStatusRequest("rejected"))
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun rejectRequest(requestId: Int): Result<JoinRequest> =
+        apiCall { api.updateJoinRequestStatus(requestId, UpdateJoinRequestStatusRequest("rejected")) }
 
-    suspend fun leaveTree(treeId: Int): Result<Unit> {
-        return try {
-            val response = api.leaveTree(treeId)
-            if (response.isSuccessful) Result.success(Unit)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun leaveTree(treeId: Int): Result<Unit> = apiCallUnit { api.leaveTree(treeId) }
 
-    suspend fun deleteFamilyTree(treeId: Int): Result<Unit> {
-        return try {
-            val response = api.deleteFamilyTree(treeId)
-            if (response.isSuccessful) Result.success(Unit)
-            else Result.failure(Exception(backendErrorMessage(response)))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun deleteFamilyTree(treeId: Int): Result<Unit> = apiCallUnit { api.deleteFamilyTree(treeId) }
 
-    suspend fun getMyRequests(): Result<List<JoinRequest>> {
-        return try {
-            val response = api.getMyJoinRequests()
-            if (response.isSuccessful) Result.success(response.body()!!)
-            else Result.failure(Exception("Failed: ${response.code()}"))
-        } catch (e: Exception) { Result.failure(e) }
-    }
+    suspend fun getMyRequests(): Result<List<JoinRequest>> = apiCall { api.getMyJoinRequests() }
 }

@@ -14,11 +14,12 @@ fun BannerAd(modifier: Modifier = Modifier) {
         factory = { context ->
             AdView(context).apply {
                 setAdSize(AdSize.BANNER)
-                // Use test ad unit ID during development
-                // Real ID: ca-app-pub-1067859484205439/8693686656
-                adUnitId = "ca-app-pub-3940256099942544/6300978111"
+                adUnitId = "ca-app-pub-1067859484205439/8693686656"
                 loadAd(AdRequest.Builder().build())
             }
-        }
+        },
+        // AdView owns a WebView-backed rendering surface that isn't freed automatically when
+        // the composable leaves composition (e.g. navigating away) - destroy() releases it.
+        onRelease = { it.destroy() }
     )
 }

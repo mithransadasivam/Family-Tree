@@ -72,17 +72,30 @@ fun HomeScreen(navController: NavController) {
     var showJoinDialog by remember { mutableStateOf(false) }
     var newTreeName by remember { mutableStateOf("") }
     var newTreeDesc by remember { mutableStateOf("") }
+    var isCreatingTree by remember { mutableStateOf(false) }
+    var createTreeError by remember { mutableStateOf("") }
     var joinCode by remember { mutableStateOf("") }
     var joinMessage by remember { mutableStateOf("") }
     var isSubmittingJoin by remember { mutableStateOf(false) }
     var joinError by remember { mutableStateOf("") }
+    var loadError by remember { mutableStateOf("") }
     val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(Unit) {
-        val result = repository.getFamilyTrees()
-        if (result.isSuccess) trees = result.getOrNull() ?: emptyList()
-        isLoading = false
+    fun loadTrees() {
+        scope.launch {
+            isLoading = true
+            loadError = ""
+            val result = repository.getFamilyTrees()
+            if (result.isSuccess) {
+                trees = result.getOrNull() ?: emptyList()
+            } else {
+                loadError = result.exceptionOrNull()?.message ?: "Failed to load your trees"
+            }
+            isLoading = false
+        }
     }
+
+    LaunchedEffect(Unit) { loadTrees() }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -107,6 +120,17 @@ fun HomeScreen(navController: NavController) {
         if (isLoading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Primary)
+            }
+        } else if (loadError.isNotEmpty()) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(loadError, color = TextHint)
+                    Spacer(Modifier.height(12.dp))
+                    Button(
+                        onClick = { loadTrees() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Primary)
+                    ) { Text("Retry") }
+                }
             }
         } else {
             LazyColumn(
@@ -164,35 +188,64 @@ fun HomeScreen(navController: NavController) {
 
         if (showCreateDialog) {
             AlertDialog(
-                onDismissRequest = { showCreateDialog = false },
+                onDismissRequest = { if (!isCreatingTree) { showCreateDialog = false; createTreeError = "" } },
                 title = { Text("New Family Tree") },
                 text = {
                     Column {
-                        OutlinedTextField(value = newTreeName, onValueChange = { newTreeName = it }, label = { Text("Tree Name") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(
+                            value = newTreeName,
+                            onValueChange = { newTreeName = it },
+                            label = { Text("Tree Name") },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isCreatingTree
+                        )
                         Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(value = newTreeDesc, onValueChange = { newTreeDesc = it }, label = { Text("Description (optional)") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(
+                            value = newTreeDesc,
+                            onValueChange = { newTreeDesc = it },
+                            label = { Text("Description (optional)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isCreatingTree
+                        )
+                        if (createTreeError.isNotEmpty()) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(createTreeError, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                        }
                     }
                 },
                 confirmButton = {
-                    Button(onClick = {
-                        if (newTreeName.isNotBlank()) {
+                    Button(
+                        onClick = {
+                            createTreeError = ""
+                            isCreatingTree = true
                             scope.launch {
                                 val result = repository.createFamilyTree(newTreeName, newTreeDesc)
+                                isCreatingTree = false
                                 if (result.isSuccess) {
                                     trees = trees + result.getOrNull()!!
                                     showCreateDialog = false
                                     newTreeName = ""
                                     newTreeDesc = ""
                                 } else {
-                                    newTreeName = "Error: ${result.exceptionOrNull()?.message}"
+                                    createTreeError = result.exceptionOrNull()?.message ?: "Failed to create tree"
                                 }
                             }
+                        },
+                        enabled = !isCreatingTree && newTreeName.isNotBlank()
+                    ) {
+                        if (isCreatingTree) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
                         } else {
-                            newTreeName = ""
+                            Text("Create")
                         }
-                    }) { Text("Create") }
+                    }
                 },
-                dismissButton = { TextButton(onClick = { showCreateDialog = false }) { Text("Cancel") } }
+                dismissButton = {
+                    TextButton(
+                        onClick = { showCreateDialog = false; createTreeError = "" },
+                        enabled = !isCreatingTree
+                    ) { Text("Cancel") }
+                }
             )
         }
 

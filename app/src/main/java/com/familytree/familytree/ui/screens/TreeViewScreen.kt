@@ -68,6 +68,8 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
     var newLastName by remember { mutableStateOf("") }
     var newPhone by remember { mutableStateOf("") }
     var newBirthPlace by remember { mutableStateOf("") }
+    var isAddingMember by remember { mutableStateOf(false) }
+    var addMemberError by remember { mutableStateOf("") }
 
     var tree by remember { mutableStateOf<FamilyTree?>(null) }
     var isOwner by remember { mutableStateOf(false) }
@@ -76,6 +78,7 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
     var generatedCode by remember { mutableStateOf("") }
     var showLeaveConfirm by remember { mutableStateOf(false) }
     var leaveErrorMessage by remember { mutableStateOf("") }
+    var actionErrorMessage by remember { mutableStateOf("") }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var deleteNameInput by remember { mutableStateOf("") }
     var deleteErrorMessage by remember { mutableStateOf("") }
@@ -137,6 +140,8 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
                                             if (result.isSuccess) {
                                                 generatedCode = result.getOrNull()?.code ?: ""
                                                 showGenerateCodeDialog = true
+                                            } else {
+                                                actionErrorMessage = result.exceptionOrNull()?.message ?: "Failed to generate family code"
                                             }
                                         }
                                     }
@@ -155,7 +160,12 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
                                                 onCheckedChange = { checked ->
                                                     scope.launch {
                                                         val result = repository.updateTreeApprovalRequired(treeId, checked)
-                                                        result.getOrNull()?.let { tree = it }
+                                                        val updated = result.getOrNull()
+                                                        if (updated != null) {
+                                                            tree = updated
+                                                        } else {
+                                                            actionErrorMessage = result.exceptionOrNull()?.message ?: "Failed to update setting"
+                                                        }
                                                     }
                                                 }
                                             )
@@ -197,7 +207,7 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
         bottomBar = {
             Column {
                 BannerAd(modifier = Modifier.fillMaxWidth())
-                BottomNavBar(navController = navController, currentRoute = "tree/$treeId")
+                BottomNavBar(navController = navController, currentRoute = Screen.TreeView.createRoute(treeId))
             }
         }
     ) { padding ->
@@ -248,48 +258,71 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
 
     if (showAddMember) {
         AlertDialog(
-            onDismissRequest = { showAddMember = false },
+            onDismissRequest = { if (!isAddingMember) { showAddMember = false; addMemberError = "" } },
             title = { Text("Add Family Member") },
             text = {
                 Column {
-                    OutlinedTextField(value = newFirstName, onValueChange = { newFirstName = it }, label = { Text("First Name *") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = newFirstName, onValueChange = { newFirstName = it }, label = { Text("First Name *") }, modifier = Modifier.fillMaxWidth(), enabled = !isAddingMember)
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(value = newLastName, onValueChange = { newLastName = it }, label = { Text("Last Name") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = newLastName, onValueChange = { newLastName = it }, label = { Text("Last Name") }, modifier = Modifier.fillMaxWidth(), enabled = !isAddingMember)
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(value = newPhone, onValueChange = { newPhone = it }, label = { Text("Phone") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = newPhone, onValueChange = { newPhone = it }, label = { Text("Phone") }, modifier = Modifier.fillMaxWidth(), enabled = !isAddingMember)
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(value = newBirthPlace, onValueChange = { newBirthPlace = it }, label = { Text("Birth Place") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = newBirthPlace, onValueChange = { newBirthPlace = it }, label = { Text("Birth Place") }, modifier = Modifier.fillMaxWidth(), enabled = !isAddingMember)
+                    if (addMemberError.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(addMemberError, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                    }
                 }
             },
             confirmButton = {
-                Button(onClick = {
-                    if (newFirstName.isNotBlank()) {
-                        scope.launch {
-                            val result = repository.createFamilyMember(
-                                CreateMemberRequest(
-                                    tree = treeId,
-                                    first_name = newFirstName,
-                                    last_name = newLastName,
-                                    phone = newPhone,
-                                    email = "",
-                                    birth_date = null,
-                                    birth_place = newBirthPlace,
-                                    photo_url = ""
+                Button(
+                    onClick = {
+                        if (newFirstName.isNotBlank()) {
+                            addMemberError = ""
+                            isAddingMember = true
+                            scope.launch {
+                                val result = repository.createFamilyMember(
+                                    CreateMemberRequest(
+                                        tree = treeId,
+                                        first_name = newFirstName,
+                                        last_name = newLastName,
+                                        phone = newPhone,
+                                        email = "",
+                                        birth_date = null,
+                                        birth_place = newBirthPlace,
+                                        photo_url = ""
+                                    )
                                 )
-                            )
-                            if (result.isSuccess) {
-                                loadData()
-                                showAddMember = false
-                                newFirstName = ""
-                                newLastName = ""
-                                newPhone = ""
-                                newBirthPlace = ""
+                                isAddingMember = false
+                                if (result.isSuccess) {
+                                    loadData()
+                                    showAddMember = false
+                                    newFirstName = ""
+                                    newLastName = ""
+                                    newPhone = ""
+                                    newBirthPlace = ""
+                                } else {
+                                    addMemberError = result.exceptionOrNull()?.message ?: "Failed to add member"
+                                }
                             }
                         }
+                    },
+                    enabled = !isAddingMember && newFirstName.isNotBlank()
+                ) {
+                    if (isAddingMember) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                    } else {
+                        Text("Add")
                     }
-                }) { Text("Add") }
+                }
             },
-            dismissButton = { TextButton(onClick = { showAddMember = false }) { Text("Cancel") } }
+            dismissButton = {
+                TextButton(
+                    onClick = { showAddMember = false; addMemberError = "" },
+                    enabled = !isAddingMember
+                ) { Text("Cancel") }
+            }
         )
     }
 
@@ -395,6 +428,15 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
             title = { Text("Couldn't Delete Tree") },
             text = { Text(deleteErrorMessage) },
             confirmButton = { TextButton(onClick = { deleteErrorMessage = "" }) { Text("OK") } }
+        )
+    }
+
+    if (actionErrorMessage.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { actionErrorMessage = "" },
+            title = { Text("Something Went Wrong") },
+            text = { Text(actionErrorMessage) },
+            confirmButton = { TextButton(onClick = { actionErrorMessage = "" }) { Text("OK") } }
         )
     }
 }

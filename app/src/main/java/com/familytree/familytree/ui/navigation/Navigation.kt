@@ -1,11 +1,17 @@
 package com.familytree.familytree.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.familytree.familytree.data.repository.AppRepository
 import com.familytree.familytree.ui.screens.EditHistoryScreen
 import com.familytree.familytree.ui.screens.HomeScreen
 import com.familytree.familytree.ui.screens.LoginScreen
@@ -37,6 +43,22 @@ sealed class Screen(val route: String) {
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
+    val context = LocalContext.current
+    val repository = remember { AppRepository(context) }
+
+    // Any API call anywhere in the app that comes back 401 flips this shared flag - react to
+    // it in exactly one place instead of every screen having to notice its own requests failing
+    // with an expired/invalid token: drop the stale token and send the user back to Login.
+    val sessionExpired by AppRepository.sessionExpired.collectAsState()
+    LaunchedEffect(sessionExpired) {
+        if (sessionExpired) {
+            repository.clearToken()
+            AppRepository.clearSessionExpiredFlag()
+            navController.navigate(Screen.Login.route) {
+                popUpTo(navController.graph.id) { inclusive = true }
+            }
+        }
+    }
 
     NavHost(navController = navController, startDestination = Screen.Login.route) {
         composable(Screen.Login.route) {

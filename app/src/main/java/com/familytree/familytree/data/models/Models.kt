@@ -149,6 +149,9 @@ data class EditHistory(
     val entity_type: String,
     val entity_id: Int,
     val change_description: String,
-    val edited_by: User,
+    // Nullable: a history row's editing user may since have been removed from the tree, and
+    // Gson will silently deserialize a null JSON value here regardless of Kotlin's static
+    // nullability, so this must reflect that honestly rather than promising a non-null value.
+    val edited_by: User?,
     val edited_at: String
 )

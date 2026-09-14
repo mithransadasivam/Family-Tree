@@ -25,7 +25,9 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -110,6 +112,8 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
     var editDeathPlace by remember { mutableStateOf("") }
     var isSavingEdit by remember { mutableStateOf(false) }
     var editError by remember { mutableStateOf("") }
+    var showDeleteMemberConfirm by remember { mutableStateOf(false) }
+    var relationshipPendingDelete by remember { mutableStateOf<Relationship?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     fun openEditSheet(m: FamilyMember) {
@@ -175,14 +179,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                     IconButton(onClick = { member?.let { openEditSheet(it) } }) {
                         Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = Color.White)
                     }
-                    IconButton(onClick = {
-                        scope.launch {
-                            member?.let { m ->
-                                repository.deleteFamilyMember(m.id)
-                                navController.popBackStack()
-                            }
-                        }
-                    }) {
+                    IconButton(onClick = { showDeleteMemberConfirm = true }) {
                         Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = Color.White)
                     }
                 },
@@ -240,6 +237,24 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                                         }
                                     }
                                 }
+                                if (m.death_date != null) {
+                                    Row(Modifier.padding(vertical = 8.dp)) {
+                                        Text("🕊 ", fontSize = 16.sp)
+                                        Column {
+                                            Text("Death Date", fontSize = 11.sp, color = TextHint)
+                                            Text(m.death_date)
+                                        }
+                                    }
+                                }
+                                if (m.death_place.isNotEmpty()) {
+                                    Row(Modifier.padding(vertical = 8.dp)) {
+                                        Text("📍 ", fontSize = 16.sp)
+                                        Column {
+                                            Text("Death Place", fontSize = 11.sp, color = TextHint)
+                                            Text(m.death_place)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -269,15 +284,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                                 IconButton(onClick = { openEditRelSheet(rel) }) {
                                     Icon(Icons.Default.Edit, contentDescription = "Edit relationship", tint = Primary)
                                 }
-                                IconButton(onClick = {
-                                    scope.launch {
-                                        repository.deleteRelationship(rel.id)
-                                        val relsResult = repository.getRelationships(member!!.tree)
-                                        if (relsResult.isSuccess) relationships = relsResult.getOrNull()
-                                            ?.filter { it.member_1 == memberId || it.member_2 == memberId }
-                                            ?: emptyList()
-                                    }
-                                }) {
+                                IconButton(onClick = { relationshipPendingDelete = rel }) {
                                     Icon(Icons.Default.Delete, contentDescription = "Delete relationship", tint = Color.Red.copy(alpha = 0.7f))
                                 }
                             }
@@ -488,14 +495,28 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                     Button(
                         onClick = {
                             val term = selectedTerm ?: return@Button
-                            val relType = relTypes.find { it.type_name == term.englishType } ?: return@Button
+                            val relType = relTypes.find { it.type_name == term.englishType }
+                            if (relType == null) {
+                                scope.launch { snackbarHostState.showSnackbar("This relationship type isn't available right now") }
+                                return@Button
+                            }
                             val relIdBeingEdited = editingRelationshipId
                             scope.launch {
                                 member?.let { m ->
+                                    // When editing, delete the old relationship first, then create the
+                                    // replacement. If the delete fails, bail out before touching
+                                    // anything so the original relationship is left intact. If the
+                                    // delete succeeds but the create fails, the list is still
+                                    // refreshed and the user is told - so the UI never quietly shows
+                                    // stale data as if the edit had worked.
                                     if (relIdBeingEdited != null) {
-                                        repository.deleteRelationship(relIdBeingEdited)
+                                        val deleteResult = repository.deleteRelationship(relIdBeingEdited)
+                                        if (!deleteResult.isSuccess) {
+                                            snackbarHostState.showSnackbar(deleteResult.exceptionOrNull()?.message ?: "Failed to update relationship")
+                                            return@launch
+                                        }
                                     }
-                                    repository.createRelationship(
+                                    val createResult = repository.createRelationship(
                                         CreateRelationshipRequest(
                                             tree = m.tree,
                                             member_1 = m.id,
@@ -508,8 +529,10 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                                         ?.filter { it.member_1 == memberId || it.member_2 == memberId }
                                         ?: emptyList()
                                     closeAddRel()
-                                    if (relIdBeingEdited != null) {
-                                        snackbarHostState.showSnackbar("Relationship updated")
+                                    if (createResult.isSuccess) {
+                                        snackbarHostState.showSnackbar(if (relIdBeingEdited != null) "Relationship updated" else "Relationship added")
+                                    } else {
+                                        snackbarHostState.showSnackbar(createResult.exceptionOrNull()?.message ?: "Failed to save relationship")
                                     }
                                 }
                             }
@@ -595,6 +618,63 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                 }
             }
         }
+    }
+
+    if (showDeleteMemberConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteMemberConfirm = false },
+            title = { Text("Delete Member") },
+            text = { Text("Are you sure you want to delete ${member?.first_name ?: "this member"}? This action cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteMemberConfirm = false
+                        scope.launch {
+                            member?.let { m ->
+                                val result = repository.deleteFamilyMember(m.id)
+                                if (result.isSuccess) {
+                                    navController.popBackStack()
+                                } else {
+                                    snackbarHostState.showSnackbar(result.exceptionOrNull()?.message ?: "Failed to delete member")
+                                }
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteMemberConfirm = false }) { Text("Cancel") } }
+        )
+    }
+
+    relationshipPendingDelete?.let { relToDelete ->
+        AlertDialog(
+            onDismissRequest = { relationshipPendingDelete = null },
+            title = { Text("Delete Relationship") },
+            text = { Text("Are you sure you want to remove this relationship?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        relationshipPendingDelete = null
+                        scope.launch {
+                            val result = repository.deleteRelationship(relToDelete.id)
+                            if (result.isSuccess) {
+                                member?.let { m ->
+                                    val relsResult = repository.getRelationships(m.tree)
+                                    if (relsResult.isSuccess) relationships = relsResult.getOrNull()
+                                        ?.filter { it.member_1 == memberId || it.member_2 == memberId }
+                                        ?: emptyList()
+                                }
+                            } else {
+                                snackbarHostState.showSnackbar(result.exceptionOrNull()?.message ?: "Failed to delete relationship")
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { relationshipPendingDelete = null }) { Text("Cancel") } }
+        )
     }
 }
 

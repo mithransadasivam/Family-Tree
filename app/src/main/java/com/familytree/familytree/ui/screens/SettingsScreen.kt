@@ -12,15 +12,25 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,6 +46,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.familytree.familytree.data.api.AuthConfig
+import com.familytree.familytree.data.models.User
 import com.familytree.familytree.data.repository.AppRepository
 import com.familytree.familytree.ui.components.BannerAd
 import com.familytree.familytree.ui.navigation.Screen
@@ -55,17 +67,39 @@ fun SettingsScreen(navController: NavController) {
     val repository = remember { AppRepository(context) }
     var isTreeOwner by remember { mutableStateOf(false) }
     var pendingCount by remember { mutableStateOf(0) }
+    var currentUser by remember { mutableStateOf<User?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    var showEditProfile by remember { mutableStateOf(false) }
+    var editFirstName by remember { mutableStateOf("") }
+    var editLastName by remember { mutableStateOf("") }
+    var editPhone by remember { mutableStateOf("") }
+    var editAddress by remember { mutableStateOf("") }
+    var isSavingProfile by remember { mutableStateOf(false) }
+    var profileError by remember { mutableStateOf("") }
 
     val googleSignInClient = remember {
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken("274201294258-7sd4aqc4m7vm54avvas15ir20c7aq4gn.apps.googleusercontent.com")
+            .requestIdToken(AuthConfig.GOOGLE_WEB_CLIENT_ID)
             .requestEmail()
             .build()
         GoogleSignIn.getClient(context, gso)
     }
 
+    fun openEditProfile() {
+        currentUser?.let { u ->
+            editFirstName = u.first_name
+            editLastName = u.last_name
+            editPhone = u.phone
+            editAddress = u.address
+        }
+        profileError = ""
+        showEditProfile = true
+    }
+
     LaunchedEffect(Unit) {
         val me = repository.getMe().getOrNull()
+        currentUser = me
         val treesResult = repository.getFamilyTrees()
         if (me != null && treesResult.isSuccess) {
             val owned = treesResult.getOrNull().orEmpty().filter { it.owner.id == me.id }
@@ -79,6 +113,7 @@ fun SettingsScreen(navController: NavController) {
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Settings", color = Color.White) },
@@ -99,7 +134,7 @@ fun SettingsScreen(navController: NavController) {
             Spacer(Modifier.height(8.dp))
             Card(colors = CardDefaults.cardColors(containerColor = Surface)) {
                 Column {
-                    SettingsItem("👤", "Edit Profile") { }
+                    SettingsItem("👤", "Edit Profile") { openEditProfile() }
                     SettingsItem("🚪", "Log Out", textColor = Color.Red) {
                         googleSignInClient.signOut()
                         scope.launch {
@@ -125,6 +160,94 @@ fun SettingsScreen(navController: NavController) {
                     }
                     SettingsItem("📤", "My Join Requests") {
                         navController.navigate(Screen.MyRequests.route)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showEditProfile) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { if (!isSavingProfile) showEditProfile = false },
+            sheetState = sheetState
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 24.dp)
+            ) {
+                Text("Edit Profile", fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = editFirstName,
+                    onValueChange = { editFirstName = it },
+                    label = { Text("First Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSavingProfile
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = editLastName,
+                    onValueChange = { editLastName = it },
+                    label = { Text("Last Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSavingProfile
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = editPhone,
+                    onValueChange = { editPhone = it },
+                    label = { Text("Phone") },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSavingProfile
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = editAddress,
+                    onValueChange = { editAddress = it },
+                    label = { Text("Address") },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSavingProfile
+                )
+
+                if (profileError.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(profileError, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                }
+
+                Spacer(Modifier.height(20.dp))
+                Button(
+                    onClick = {
+                        profileError = ""
+                        isSavingProfile = true
+                        scope.launch {
+                            val updates = mapOf(
+                                "first_name" to editFirstName,
+                                "last_name" to editLastName,
+                                "phone" to editPhone,
+                                "address" to editAddress
+                            )
+                            val result = repository.updateMe(updates)
+                            isSavingProfile = false
+                            if (result.isSuccess) {
+                                currentUser = result.getOrNull()
+                                showEditProfile = false
+                                snackbarHostState.showSnackbar("Profile updated successfully")
+                            } else {
+                                profileError = result.exceptionOrNull()?.message ?: "Failed to update profile"
+                            }
+                        }
+                    },
+                    enabled = !isSavingProfile && editFirstName.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (isSavingProfile) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                    } else {
+                        Text("Save")
                     }
                 }
             }

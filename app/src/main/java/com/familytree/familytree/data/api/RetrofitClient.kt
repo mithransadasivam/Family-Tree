@@ -3,6 +3,7 @@ package com.familytree.familytree.data.api
 import android.content.Context
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.familytree.familytree.BuildConfig
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
@@ -39,14 +40,19 @@ object RetrofitClient {
             chain.proceed(request)
         }
 
-        val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+        val clientBuilder = OkHttpClient.Builder().addInterceptor(authInterceptor)
+
+        // Full request/response bodies (auth headers, emails, phone numbers, birth dates)
+        // must never be written to Logcat in a release build - only attach the logging
+        // interceptor for debug builds.
+        if (BuildConfig.DEBUG) {
+            val logging = HttpLoggingInterceptor().apply {
+                level = HttpLoggingInterceptor.Level.BODY
+            }
+            clientBuilder.addInterceptor(logging)
         }
 
-        val client = OkHttpClient.Builder()
-            .addInterceptor(authInterceptor)
-            .addInterceptor(logging)
-            .build()
+        val client = clientBuilder.build()
 
         return Retrofit.Builder()
             .baseUrl(BASE_URL)

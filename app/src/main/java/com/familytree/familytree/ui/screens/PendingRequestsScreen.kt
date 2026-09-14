@@ -22,6 +22,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -62,9 +64,12 @@ fun PendingRequestsScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(true) }
     var ownedTrees by remember { mutableStateOf<List<FamilyTree>>(emptyList()) }
     var requestsByTree by remember { mutableStateOf<Map<Int, List<JoinRequest>>>(emptyMap()) }
-    var successMessage by remember { mutableStateOf("") }
+    var loadError by remember { mutableStateOf("") }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     suspend fun loadAll() {
+        isLoading = true
+        loadError = ""
         val meResult = repository.getMe()
         val treesResult = repository.getFamilyTrees()
         val me = meResult.getOrNull()
@@ -76,6 +81,8 @@ fun PendingRequestsScreen(navController: NavController) {
                 map[tree.id] = repository.getPendingRequests(tree.id).getOrNull().orEmpty()
             }
             requestsByTree = map
+        } else if (treesResult.isFailure) {
+            loadError = treesResult.exceptionOrNull()?.message ?: "Failed to load pending requests"
         }
         isLoading = false
     }
@@ -83,6 +90,7 @@ fun PendingRequestsScreen(navController: NavController) {
     LaunchedEffect(Unit) { loadAll() }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Pending Requests", color = Color.White) },
@@ -99,18 +107,22 @@ fun PendingRequestsScreen(navController: NavController) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Primary)
             }
+        } else if (loadError.isNotEmpty()) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(loadError, color = TextHint)
+                    Spacer(Modifier.height(12.dp))
+                    Button(
+                        onClick = { scope.launch { loadAll() } },
+                        colors = ButtonDefaults.buttonColors(containerColor = Primary)
+                    ) { Text("Retry") }
+                }
+            }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (successMessage.isNotEmpty()) {
-                    item {
-                        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F3EC))) {
-                            Text(successMessage, color = Color(0xFF2E7D5B), modifier = Modifier.padding(12.dp))
-                        }
-                    }
-                }
                 if (ownedTrees.isEmpty()) {
                     item {
                         Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
@@ -142,6 +154,8 @@ fun PendingRequestsScreen(navController: NavController) {
                                             val updated = result.getOrNull()
                                             if (updated != null) {
                                                 ownedTrees = ownedTrees.map { if (it.id == tree.id) updated else it }
+                                            } else {
+                                                snackbarHostState.showSnackbar(result.exceptionOrNull()?.message ?: "Failed to update setting")
                                             }
                                         }
                                     },
@@ -177,7 +191,9 @@ fun PendingRequestsScreen(navController: NavController) {
                                                         requestsByTree = requestsByTree.toMutableMap().apply {
                                                             this[tree.id] = this[tree.id].orEmpty().filter { it.id != req.id }
                                                         }
-                                                        successMessage = "Approved ${req.requester_name}'s request"
+                                                        snackbarHostState.showSnackbar("Approved ${req.requester_name}'s request")
+                                                    } else {
+                                                        snackbarHostState.showSnackbar(result.exceptionOrNull()?.message ?: "Failed to approve request")
                                                     }
                                                 }
                                             },
@@ -192,6 +208,9 @@ fun PendingRequestsScreen(navController: NavController) {
                                                         requestsByTree = requestsByTree.toMutableMap().apply {
                                                             this[tree.id] = this[tree.id].orEmpty().filter { it.id != req.id }
                                                         }
+                                                        snackbarHostState.showSnackbar("Rejected ${req.requester_name}'s request")
+                                                    } else {
+                                                        snackbarHostState.showSnackbar(result.exceptionOrNull()?.message ?: "Failed to reject request")
                                                     }
                                                 }
                                             },

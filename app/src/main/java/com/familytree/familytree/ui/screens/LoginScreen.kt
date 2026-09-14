@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.familytree.familytree.data.api.AuthConfig
 import com.familytree.familytree.data.repository.AppRepository
 import com.familytree.familytree.ui.navigation.Screen
 import com.familytree.familytree.ui.theme.*
@@ -21,7 +22,9 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import com.google.android.gms.common.api.ApiException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun LoginScreen(navController: NavController) {
@@ -29,10 +32,26 @@ fun LoginScreen(navController: NavController) {
     val scope = rememberCoroutineScope()
     val repository = remember { AppRepository(context) }
     var isLoading by remember { mutableStateOf(false) }
+    var checkingSession by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf("") }
 
+    // A saved token from a previous session should skip straight to Home instead of forcing
+    // the user to tap "Continue with Google" again every time the app is relaunched. The check
+    // itself reads DataStore synchronously (via runBlocking under the hood), so it's pushed off
+    // the main thread here rather than run directly inside the composable.
+    LaunchedEffect(Unit) {
+        val loggedIn = withContext(Dispatchers.IO) { repository.isLoggedIn() }
+        if (loggedIn) {
+            navController.navigate(Screen.Home.route) {
+                popUpTo(Screen.Login.route) { inclusive = true }
+            }
+        } else {
+            checkingSession = false
+        }
+    }
+
     val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-        .requestIdToken("274201294258-7sd4aqc4m7vm54avvas15ir20c7aq4gn.apps.googleusercontent.com")
+        .requestIdToken(AuthConfig.GOOGLE_WEB_CLIENT_ID)
         .requestEmail()
         .build()
 
@@ -111,7 +130,7 @@ fun LoginScreen(navController: NavController) {
                 }
                 Spacer(modifier = Modifier.height(16.dp))
             }
-            if (isLoading) {
+            if (isLoading || checkingSession) {
                 CircularProgressIndicator(color = Primary)
             } else {
                 Button(
