@@ -126,7 +126,9 @@ private val tamilTerms = listOf(
     RelationshipTerm("Chithappa", "Uncle", RelationshipCategory.EXTENDED),
     RelationshipTerm("Chithi", "Aunt", RelationshipCategory.EXTENDED),
     RelationshipTerm("Athai", "Aunt", RelationshipCategory.EXTENDED),
-    RelationshipTerm("Athimber", "Uncle", RelationshipCategory.EXTENDED),
+    // Athai's husband (father's sister's husband) is also called Mama, same as mother's
+    // brother - Dravidian kinship terms don't distinguish the two given cross-cousin marriage
+    // customs, so there's no separate "Athimber" entry here.
     RelationshipTerm("Mama", "Uncle", RelationshipCategory.EXTENDED),
     RelationshipTerm("Mami", "Aunt", RelationshipCategory.EXTENDED),
     RelationshipTerm("Akka", "Sister", RelationshipCategory.SIBLINGS),
