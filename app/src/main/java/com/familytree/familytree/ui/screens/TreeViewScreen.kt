@@ -40,7 +40,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -52,7 +51,6 @@ import com.familytree.familytree.data.repository.AppRepository
 import com.familytree.familytree.ui.components.BannerAd
 import com.familytree.familytree.ui.navigation.Screen
 import com.familytree.familytree.ui.theme.*
-import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -941,38 +939,6 @@ fun FamilyTreeCanvas(
                         nameTextSize = nameTextSize,
                         dateTextSize = dateTextSize,
                         borderColor = personBorderColor(member.id, layout)
-                    )
-                }
-            }
-
-            // Generation labels are a fixed overlay layer - drawn as separate Composables here,
-            // completely outside the Canvas's graphicsLayer, so they never get swept up in the
-            // scale/translate transform applied to the tree itself. Each one tracks the screen Y
-            // of its row (so it still lines up with that generation as you pan/zoom) but is
-            // clamped to stay within the visible viewport, and rendered as a small pill badge so
-            // it stays readable - and clearly distinct from a member card - if it ever ends up
-            // over one.
-            val labelHeightPx = with(density) { 22.dp.toPx() }
-            val labelClampMargin = with(density) { 8.dp.toPx() }
-            for (gen in 0..maxGen) {
-                val contentY = topMargin + gen * vSpacing
-                val rawScreenY = contentY * animatedScale + animatedOffsetY
-                val minY = labelClampMargin
-                val maxY = (screenHeightPx - labelHeightPx - labelClampMargin).coerceAtLeast(minY)
-                val clampedY = rawScreenY.coerceIn(minY, maxY)
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .offset { IntOffset(16.dp.roundToPx(), clampedY.roundToInt()) }
-                        .shadow(elevation = 2.dp, shape = RoundedCornerShape(50))
-                        .background(Color.White, RoundedCornerShape(50))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "Gen ${gen + 1}",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFF4A7C6F)
                     )
                 }
             }
