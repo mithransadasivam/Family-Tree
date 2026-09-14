@@ -1,5 +1,8 @@
 package com.familytree.familytree.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,7 +24,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -30,6 +33,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -89,7 +93,10 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
     var isLoading by remember { mutableStateOf(true) }
     var showAddRel by remember { mutableStateOf(false) }
     var selectedMemberId by remember { mutableStateOf(0) }
-    var selectedRelTypeId by remember { mutableStateOf(0) }
+    var relLanguage by remember { mutableStateOf(RelationshipLanguage.ENGLISH) }
+    var relSearchQuery by remember { mutableStateOf("") }
+    var selectedTerm by remember { mutableStateOf<RelationshipTerm?>(null) }
+    var collapsedCategories by remember { mutableStateOf<Set<RelationshipCategory>>(emptySet()) }
 
     var showEditSheet by remember { mutableStateOf(false) }
     var editFirstName by remember { mutableStateOf("") }
@@ -265,97 +272,203 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
 
     if (showAddRel && allMembers.isNotEmpty() && relTypes.isNotEmpty()) {
         if (selectedMemberId == 0) selectedMemberId = allMembers.first().id
-        if (selectedRelTypeId == 0) selectedRelTypeId = relTypes.first().id
-
         val selectedOther = allMembers.find { it.id == selectedMemberId }
-        val selectedType = relTypes.find { it.id == selectedRelTypeId }
 
-        AlertDialog(
-            onDismissRequest = { showAddRel = false },
-            title = { Text("Add Relationship") },
-            text = {
-                Column {
-                    // Sentence preview
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F4F1)),
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-                    ) {
-                        Text(
-                            text = "${member?.first_name} is the ${selectedType?.type_name ?: "..."} of ${selectedOther?.first_name ?: "..."}",
-                            modifier = Modifier.padding(12.dp),
-                            fontSize = 14.sp,
-                            color = Color(0xFF2E5C51),
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
+        fun closeAddRel() {
+            showAddRel = false
+            selectedTerm = null
+            relSearchQuery = ""
+            relLanguage = RelationshipLanguage.ENGLISH
+        }
 
-                    Text("Select Other Member", fontSize = 12.sp, color = TextHint)
-                    Spacer(Modifier.height(4.dp))
-                    allMembers.forEach { m ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            RadioButton(
-                                selected = selectedMemberId == m.id,
-                                onClick = { selectedMemberId = m.id }
-                            )
-                            Text("${m.first_name} ${m.last_name}", fontSize = 14.sp)
+        val visibleTerms = remember(relLanguage, relSearchQuery) {
+            termsForLanguage(relLanguage).filter {
+                relSearchQuery.isBlank() || it.label.contains(relSearchQuery, ignoreCase = true)
+            }
+        }
+        val groupedTerms = remember(visibleTerms) {
+            RelationshipCategory.entries
+                .associateWith { cat -> visibleTerms.filter { it.category == cat } }
+                .filterValues { it.isNotEmpty() }
+        }
+
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { closeAddRel() },
+            sheetState = sheetState
+        ) {
+            Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+                Text("Add Relationship", fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.height(12.dp))
+
+                // Sentence preview
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F4F1)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "${member?.first_name} is the ${selectedTerm?.label ?: "..."} of ${selectedOther?.first_name ?: "..."}",
+                        modifier = Modifier.padding(12.dp),
+                        fontSize = 14.sp,
+                        color = Color(0xFF2E5C51),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+
+                Text("Select Other Member", fontSize = 12.sp, color = TextHint)
+                Spacer(Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .heightIn(max = 130.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Column {
+                        allMembers.forEach { m ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                RadioButton(
+                                    selected = selectedMemberId == m.id,
+                                    onClick = { selectedMemberId = m.id }
+                                )
+                                Text("${m.first_name} ${m.last_name}", fontSize = 14.sp)
+                            }
                         }
                     }
+                }
 
-                    Spacer(Modifier.height(12.dp))
-                    Text("Relationship Type", fontSize = 12.sp, color = TextHint)
-                    Spacer(Modifier.height(4.dp))
-                    Box(
-                        modifier = Modifier
-                            .heightIn(max = 200.dp)
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        Column {
-                            relTypes.forEach { type ->
+                Spacer(Modifier.height(16.dp))
+                Text("Relationship Type", fontSize = 12.sp, color = TextHint)
+                Spacer(Modifier.height(8.dp))
+
+                // Step 1 - language/culture chips
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    RelationshipLanguage.entries.forEach { lang ->
+                        FilterChip(
+                            selected = relLanguage == lang,
+                            onClick = {
+                                relLanguage = lang
+                                collapsedCategories = emptySet()
+                            },
+                            label = { Text("${lang.emoji} ${lang.label}") }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+
+                // Step 2 - search
+                OutlinedTextField(
+                    value = relSearchQuery,
+                    onValueChange = { relSearchQuery = it },
+                    placeholder = { Text("Search relationship...") },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(4.dp))
+
+                // Step 3 - categorized, collapsible list
+                LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    if (groupedTerms.isEmpty()) {
+                        item {
+                            Text(
+                                "No matches found",
+                                color = TextHint,
+                                modifier = Modifier.padding(vertical = 16.dp)
+                            )
+                        }
+                    }
+                    groupedTerms.forEach { (category, terms) ->
+                        val isExpanded = category !in collapsedCategories
+                        item(key = "header_${category.name}") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        collapsedCategories = if (isExpanded) {
+                                            collapsedCategories + category
+                                        } else {
+                                            collapsedCategories - category
+                                        }
+                                    }
+                                    .padding(vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "${category.emoji} ${category.label}",
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(if (isExpanded) "▾" else "▸", color = TextHint)
+                            }
+                            Divider(color = Color(0x1A4A7C6F))
+                        }
+                        if (isExpanded) {
+                            items(terms, key = { "${category.name}_${it.label}" }) { term ->
+                                val isSelected = selectedTerm == term
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { selectedTerm = term }
+                                        .background(if (isSelected) Color(0xFFE8F4F1) else Color.Transparent)
+                                        .padding(vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    RadioButton(
-                                        selected = selectedRelTypeId == type.id,
-                                        onClick = { selectedRelTypeId = type.id }
-                                    )
+                                    RadioButton(selected = isSelected, onClick = { selectedTerm = term })
                                     Column {
-                                        Text(type.type_name, fontSize = 14.sp)
+                                        Text(term.label, fontSize = 14.sp)
+                                        if (term.englishType != term.label) {
+                                            Text(term.englishType, fontSize = 11.sp, color = TextHint)
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    scope.launch {
-                        member?.let { m ->
-                            repository.createRelationship(
-                                CreateRelationshipRequest(
-                                    tree = m.tree,
-                                    member_1 = m.id,
-                                    member_2 = selectedMemberId,
-                                    relationship_type = selectedRelTypeId
-                                )
-                            )
-                            val relsResult = repository.getRelationships(m.tree)
-                            if (relsResult.isSuccess) relationships = relsResult.getOrNull()
-                                ?.filter { it.member_1 == memberId || it.member_2 == memberId }
-                                ?: emptyList()
-                            showAddRel = false
-                        }
-                    }
-                }) { Text("Add") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddRel = false }) { Text("Cancel") }
+
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = { closeAddRel() }) { Text("Cancel") }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val term = selectedTerm ?: return@Button
+                            val relType = relTypes.find { it.type_name == term.englishType } ?: return@Button
+                            scope.launch {
+                                member?.let { m ->
+                                    repository.createRelationship(
+                                        CreateRelationshipRequest(
+                                            tree = m.tree,
+                                            member_1 = m.id,
+                                            member_2 = selectedMemberId,
+                                            relationship_type = relType.id
+                                        )
+                                    )
+                                    val relsResult = repository.getRelationships(m.tree)
+                                    if (relsResult.isSuccess) relationships = relsResult.getOrNull()
+                                        ?.filter { it.member_1 == memberId || it.member_2 == memberId }
+                                        ?: emptyList()
+                                    closeAddRel()
+                                }
+                            }
+                        },
+                        enabled = selectedTerm != null
+                    ) { Text("Add") }
+                }
             }
-        )
+        }
     }
 
     if (showEditSheet) {
