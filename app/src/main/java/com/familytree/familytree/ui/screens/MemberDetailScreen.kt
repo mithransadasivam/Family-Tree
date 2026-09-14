@@ -384,7 +384,12 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                             selected = relLanguage == lang,
                             onClick = {
                                 relLanguage = lang
-                                collapsedCategories = emptySet()
+                                // Keep the current pick if it still exists in this language's
+                                // list (e.g. a basic English term shared across languages);
+                                // otherwise it wouldn't be visible/selectable anymore, so drop it.
+                                if (selectedTerm != null && selectedTerm !in termsForLanguage(lang)) {
+                                    selectedTerm = null
+                                }
                             },
                             label = { Text("${lang.emoji} ${lang.label}") }
                         )
@@ -403,42 +408,50 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                 )
                 Spacer(Modifier.height(4.dp))
 
-                // Step 3 - categorized, collapsible list
+                // Step 3 - categorized, collapsible list. Category order (RelationshipCategory.entries)
+                // and each term's position within its category (language terms first, then the
+                // shared English basics - see termsForLanguage) never change based on selection or
+                // search, only on which items are present - so switching languages/searching only
+                // adds or removes rows in place rather than reshuffling everything. Every row keeps
+                // a stable key and animates into its new position/fades in-or-out via animateItem()
+                // instead of the list jumping straight to its new layout.
                 LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     if (groupedTerms.isEmpty()) {
-                        item {
+                        item(key = "no_matches") {
                             Text(
                                 "No matches found",
                                 color = TextHint,
-                                modifier = Modifier.padding(vertical = 16.dp)
+                                modifier = Modifier.padding(vertical = 16.dp).animateItem()
                             )
                         }
                     }
                     groupedTerms.forEach { (category, terms) ->
                         val isExpanded = category !in collapsedCategories
                         item(key = "header_${category.name}") {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        collapsedCategories = if (isExpanded) {
-                                            collapsedCategories + category
-                                        } else {
-                                            collapsedCategories - category
+                            Column(modifier = Modifier.animateItem()) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            collapsedCategories = if (isExpanded) {
+                                                collapsedCategories + category
+                                            } else {
+                                                collapsedCategories - category
+                                            }
                                         }
-                                    }
-                                    .padding(vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    "${category.emoji} ${category.label}",
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 14.sp,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Text(if (isExpanded) "▾" else "▸", color = TextHint)
+                                        .padding(vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "${category.emoji} ${category.label}",
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 14.sp,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(if (isExpanded) "▾" else "▸", color = TextHint)
+                                }
+                                Divider(color = Color(0x1A4A7C6F))
                             }
-                            Divider(color = Color(0x1A4A7C6F))
                         }
                         if (isExpanded) {
                             items(terms, key = { "${category.name}_${it.label}" }) { term ->
@@ -446,6 +459,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .animateItem()
                                         .clickable { selectedTerm = term }
                                         .background(if (isSelected) Color(0xFFE8F4F1) else Color.Transparent)
                                         .padding(vertical = 8.dp),
