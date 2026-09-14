@@ -1,6 +1,6 @@
 # 🌳 Family Tree App
 
-A modern mobile app for building and sharing your family tree, built for Indian and South Asian families.
+A modern mobile app for building and sharing your family tree, built for all families.
 
 ## Features
 - 🔐 Google Sign-In authentication
