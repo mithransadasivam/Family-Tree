@@ -101,7 +101,7 @@ fun HomeScreen(navController: NavController) {
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("My Family Trees", color = Color.White) },
+                title = { Text("Kinship", color = Color.White) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Primary),
                 actions = {
                     IconButton(onClick = { navController.navigate(Screen.Profile.route) }) {

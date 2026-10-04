@@ -1,4 +1,4 @@
-# 🌳 Family Tree App
+# 🌳 Kinship
 
 A modern mobile app for building and sharing your family tree, built for all families.
 

@@ -119,7 +119,7 @@ fun LoginScreen(navController: NavController) {
         ) {
             Text("🌳", fontSize = 64.sp)
             Spacer(modifier = Modifier.height(16.dp))
-            Text("Family Tree", fontSize = 28.sp, fontWeight = FontWeight.Light, color = TextPrimary)
+            Text("Kinship", fontSize = 28.sp, fontWeight = FontWeight.Light, color = TextPrimary)
             Text("Connect your roots", fontSize = 14.sp, color = TextHint)
             Spacer(modifier = Modifier.height(48.dp))
             if (errorMessage.isNotEmpty()) {
