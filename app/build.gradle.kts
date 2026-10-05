@@ -12,7 +12,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.familytree.familytree"
+        applicationId = "com.skapps.kinship"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
