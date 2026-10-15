@@ -8,6 +8,7 @@ from family_codes.models import FamilyCode
 from family_trees.models import FamilyTree, TreeMember
 from users.models import User
 from edit_history.utils import log_edit
+from utils.throttles import CodeAttemptThrottle
 
 
 def get_current_user(request):
@@ -16,6 +17,10 @@ def get_current_user(request):
 
 
 class JoinRequestListCreateView(APIView):
+    def get_throttles(self):
+        # Only submitting a code is rate limited; listing requests is not.
+        return [CodeAttemptThrottle()] if self.request.method == 'POST' else []
+
     def get(self, request):
         user = get_current_user(request)
         tree_id = request.query_params.get('tree_id')

@@ -8,6 +8,7 @@ from .models import FamilyCode
 from family_trees.models import FamilyTree, TreeMember
 from users.models import User
 from edit_history.utils import log_edit
+from utils.throttles import CodeAttemptThrottle
 
 
 def get_current_user(request):
@@ -15,14 +16,19 @@ def get_current_user(request):
     return User.objects.get(id=user_id)
 
 
+# Unambiguous characters only (no 0/O or 1/I), so codes are easy to read out or type.
+CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+
 def generate_unique_code(tree_name):
+    # A readable prefix from the tree's name, plus a random suffix that cannot be guessed
+    # (32^6 combinations; the old 4-digit suffix had only 10,000).
     prefix = ''.join(c for c in tree_name.upper() if c.isalpha())[:6]
-    suffix = ''.join(random.choices(string.digits, k=4))
-    code = prefix + suffix
-    while FamilyCode.objects.filter(code=code).exists():
-        suffix = ''.join(random.choices(string.digits, k=4))
+    while True:
+        suffix = ''.join(random.SystemRandom().choices(CODE_ALPHABET, k=6))
         code = prefix + suffix
-    return code
+        if not FamilyCode.objects.filter(code=code).exists():
+            return code
 
 
 class GenerateCodeView(APIView):
@@ -42,6 +48,8 @@ class GenerateCodeView(APIView):
 
 
 class RedeemCodeView(APIView):
+    throttle_classes = [CodeAttemptThrottle]
+
     def post(self, request):
         user = get_current_user(request)
         code = request.data.get('code', '').upper().strip()
@@ -54,6 +62,13 @@ class RedeemCodeView(APIView):
         tree = family_code.tree
         if TreeMember.objects.filter(tree=tree, user=user).exists():
             return Response({'error': 'You are already a member of this tree'}, status=status.HTTP_400_BAD_REQUEST)
+        if tree.approval_required:
+            # Joining directly would skip the owner's approval. Join requests (POST
+            # /api/join-requests/) are the path that honours the setting.
+            return Response(
+                {'error': "This tree needs the owner's approval. Send a join request instead."},
+                status=status.HTTP_403_FORBIDDEN
+            )
         TreeMember.objects.create(tree=tree, user=user, role='member')
         family_code.is_used = True
         family_code.used_by = user

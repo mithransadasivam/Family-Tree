@@ -135,10 +135,7 @@ class UserDetailView(APIView):
 
     def get(self, request):
         try:
-            payload = request.auth.payload
-            print('PAYLOAD:', payload)
-            user_id = payload.get('user_id')
-            print('USER ID:', user_id)
+            user_id = request.auth.payload.get('user_id')
             user = User.objects.get(id=user_id)
             return Response(UserSerializer(user).data)
         except User.DoesNotExist:

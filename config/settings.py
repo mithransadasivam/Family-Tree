@@ -82,6 +82,10 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    # Per-account cap on family-code attempts (redeeming / sending join requests).
+    'DEFAULT_THROTTLE_RATES': {
+        'code_attempts': '30/hour',
+    },
 }
 
 from datetime import timedelta
