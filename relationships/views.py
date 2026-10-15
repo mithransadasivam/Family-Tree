@@ -45,6 +45,35 @@ class RelationshipListView(APIView):
 
 
 class RelationshipDetailView(APIView):
+    def patch(self, request, rel_id):
+        """Change a relationship's type and/or either member. The tree itself cannot change."""
+        user = get_current_user(request)
+        try:
+            rel = Relationship.objects.get(id=rel_id)
+        except Relationship.DoesNotExist:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        if not TreeMember.objects.filter(tree=rel.tree, user=user).exists():
+            return Response({'error': 'Not a member'}, status=status.HTTP_403_FORBIDDEN)
+
+        allowed = ('member_1', 'member_2', 'relationship_type')
+        data = {k: request.data[k] for k in allowed if k in request.data}
+        serializer = RelationshipSerializer(rel, data=data, partial=True)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # Both people must belong to this relationship's own tree.
+        for field in ('member_1', 'member_2'):
+            member = serializer.validated_data.get(field)
+            if member is not None and member.tree_id != rel.tree_id:
+                return Response({'error': 'Member is not in this tree'}, status=status.HTTP_400_BAD_REQUEST)
+        member_1 = serializer.validated_data.get('member_1', rel.member_1)
+        member_2 = serializer.validated_data.get('member_2', rel.member_2)
+        if member_1.id == member_2.id:
+            return Response({'error': 'A person cannot be related to themselves'}, status=status.HTTP_400_BAD_REQUEST)
+
+        rel = serializer.save()
+        log_edit(rel.tree, 'relationship', rel.id, user, 'Updated relationship')
+        return Response(RelationshipSerializer(rel).data)
+
     def delete(self, request, rel_id):
         user = get_current_user(request)
         try:

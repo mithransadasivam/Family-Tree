@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Kinship - build and share your family tree." />
+    <meta name="theme-color" content="#08100d" />
+    <title>Kinship</title>
+    <script>
+      // Apply the saved (or system) theme before first paint to avoid a flash.
+      try {
+        var t = localStorage.getItem('kinship-theme')
+        if (t !== 'light' && t !== 'dark') {
+          t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+        }
+        document.documentElement.dataset.theme = t
+      } catch (e) {
+        document.documentElement.dataset.theme = 'dark'
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-BmJyF_Z0.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BmVLr3ah.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

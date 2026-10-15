@@ -16,7 +16,7 @@ def verify_google_token(id_token):
     if 'error' in data:
         raise ValueError(f'Google token error: {data["error"]}')
 
-    if data.get('aud') != settings.GOOGLE_CLIENT_ID:
+    if data.get('aud') not in settings.GOOGLE_CLIENT_IDS:
         raise ValueError('Token audience does not match client ID')
 
     return {
