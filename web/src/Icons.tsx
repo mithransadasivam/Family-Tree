@@ -100,3 +100,26 @@ export const History = ({ size, ...p }: P) => (
     <path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2" />
   </svg>
 )
+export const Poster = ({ size, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <rect x="4" y="3" width="16" height="18" rx="2.5" />
+    <circle cx="12" cy="11" r="3.5" />
+    <path d="M12 7.5V4M8.5 18h7" />
+  </svg>
+)
+export const Download = ({ size, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" />
+  </svg>
+)
+export const Printer = ({ size, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <path d="M7 9V3.5h10V9M7 17H4.5A1.5 1.5 0 0 1 3 15.5v-5A1.5 1.5 0 0 1 4.5 9h15a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 1-1.5 1.5H17" />
+    <rect x="7" y="14" width="10" height="6.5" rx="1" />
+  </svg>
+)
+export const Share = ({ size, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <path d="M12 15V4M8 8l4-4 4 4M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" />
+  </svg>
+)

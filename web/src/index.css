@@ -1453,3 +1453,59 @@ input[type='checkbox']:checked::after {
     stroke-dashoffset: 0;
   }
 }
+
+/* poster dialog */
+.poster-modal {
+  max-width: 1000px;
+}
+.poster-controls {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.seg {
+  display: inline-flex;
+  padding: 3px;
+  gap: 3px;
+  border-radius: 12px;
+  background: var(--glass-hi);
+  border: 1px solid var(--line-strong);
+}
+.seg button {
+  padding: 7px 16px;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink-2);
+  box-shadow: none;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.seg button.on {
+  background: linear-gradient(180deg, var(--gold), var(--gold-d));
+  color: var(--on-gold);
+}
+.poster-preview {
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  padding: 10px;
+  min-height: 160px;
+  display: grid;
+  place-items: center;
+  background: repeating-conic-gradient(var(--glass-hi) 0% 25%, transparent 0% 50%) 50% / 22px 22px;
+}
+.poster-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 52vh;
+  height: auto;
+  width: auto;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+}
+@media (max-width: 760px) {
+  .poster-modal {
+    padding: 20px;
+  }
+}

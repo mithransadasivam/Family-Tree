@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import DetailPanel from './DetailPanel'
-import { Back, Gear, Plus, Search } from './Icons'
+import { Back, Gear, Plus, Poster, Search } from './Icons'
 import MemberForm from './MemberForm'
+import PosterDialog from './PosterDialog'
 import { useMembers, useRelationships, useTrees } from './queries'
 import Rings from './Rings'
 import TreeView from './TreeView'
@@ -19,6 +20,7 @@ export default function TreePage() {
   const [focus, setFocus] = useState<{ id: number; n: number } | null>(null)
   const [editing, setEditing] = useState<Member | 'new' | null>(null)
   const [query, setQuery] = useState('')
+  const [posterOpen, setPosterOpen] = useState(false)
 
   const memberList = useMemo(() => members.data ?? [], [members.data])
   const byId = useMemo(() => new Map(memberList.map((m) => [m.id, m])), [memberList])
@@ -104,6 +106,9 @@ export default function TreePage() {
               </ul>
             )}
           </div>
+          <button className="ghost" onClick={() => setPosterOpen(true)} disabled={forest.length === 0}>
+            <Poster size={16} /> <span className="label">Poster</span>
+          </button>
           <Link to={`/trees/${treeId}/manage`} className="btn-link">
             <Gear size={16} /> <span className="label">Manage</span>
           </Link>
@@ -171,6 +176,17 @@ export default function TreePage() {
           />
         )}
       </div>
+
+      {posterOpen && (
+        <PosterDialog
+          forest={forest}
+          members={memberList}
+          treeName={tree?.tree_name ?? 'Family tree'}
+          people={memberList.length}
+          generations={generations}
+          onClose={() => setPosterOpen(false)}
+        />
+      )}
 
       {editing && (
         <MemberForm

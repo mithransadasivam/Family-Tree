@@ -40,6 +40,7 @@ Then commit `webapp/` and deploy the backend to Railway. Do not deploy from a pl
 | Tree view: pan/zoom, couples drawn side by side with a rings link, children hanging from the pair, every family line shown (in-laws' parents linked to their child), search that pans to the person (`TreeView.tsx`, `graph.ts`) | built, tested |
 | Members: add, edit, delete, photo by URL (`MemberForm.tsx`, `DetailPanel.tsx`) | add/edit/delete tested via API; form UI partly tested |
 | Relationships: add, edit, remove; 34 canonical types, English picker grouped by category (`TermPicker.tsx`; other-language terms from Android are kept in `relationshipTerms.ts` but not shown); grandparent links drop a generation | built, add/edit tested |
+| Poster: print-ready tree as PNG, SVG, PDF (print dialog) or share sheet, light/dark (`PosterDialog.tsx`, `poster.ts`) | built; PNG, preview and print HTML tested, a real print dialog not |
 | Manage page (`ManagePage.tsx`): invite codes, require-approval setting, approve/reject join requests, edit history, delete (owner) / leave (member) | built, tested against Django |
 | Join a tree by code + "my join requests" (`TreesPage.tsx`) | built; error path tested, a successful request not |
 | Responsive layout, loading/error states, SPA deploy config | built; mobile layout and deploy not tested |
