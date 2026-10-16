@@ -4,11 +4,12 @@ import DetailPanel from './DetailPanel'
 import { Back, Gear, Plus, Poster, Search } from './Icons'
 import MemberForm from './MemberForm'
 import PosterDialog from './PosterDialog'
-import { useMembers, useRelationships, useTrees } from './queries'
+import { useMembers, useRelationships, useRestore, useTrees, type MemberSnapshot } from './queries'
 import Rings from './Rings'
 import TreeView from './TreeView'
+import UndoBar, { type Undoable } from './UndoBar'
 import { buildForest, buildGraph, countPeople, depthOf, findRoots } from './graph'
-import { fullName, type Member } from './types'
+import { fullName, type Member, type Relationship } from './types'
 
 export default function TreePage() {
   const treeId = Number(useParams().treeId)
@@ -21,6 +22,8 @@ export default function TreePage() {
   const [editing, setEditing] = useState<Member | 'new' | null>(null)
   const [query, setQuery] = useState('')
   const [posterOpen, setPosterOpen] = useState(false)
+  const [undo, setUndo] = useState<Undoable | null>(null)
+  const restore = useRestore(treeId)
 
   const memberList = useMemo(() => members.data ?? [], [members.data])
   const byId = useMemo(() => new Map(memberList.map((m) => [m.id, m])), [memberList])
@@ -53,6 +56,19 @@ export default function TreePage() {
     setSelectedId(id)
     setFocus((f) => ({ id, n: (f?.n ?? 0) + 1 }))
   }
+
+  const offerUndo = (message: string, run: () => Promise<void>) =>
+    setUndo((u) => ({ key: (u?.key ?? 0) + 1, message, run }))
+
+  const onDeleted = (snapshot: MemberSnapshot) => {
+    setSelectedId(null)
+    offerUndo(`Deleted ${fullName(snapshot.member)}`, async () => {
+      const back = await restore.member(snapshot)
+      goTo(back.id)
+    })
+  }
+  const onRelationshipRemoved = (rel: Relationship, description: string) =>
+    offerUndo(description, () => restore.relationship(rel))
 
   const tree = trees.data?.find((t) => t.id === treeId)
   const loading = members.isLoading || rels.isLoading
@@ -170,12 +186,15 @@ export default function TreePage() {
             members={memberList}
             relationships={rels.data ?? []}
             onEdit={() => setEditing(selected)}
-            onDeleted={() => setSelectedId(null)}
+            onDeleted={onDeleted}
+            onRelationshipRemoved={onRelationshipRemoved}
             onSelect={goTo}
             onClose={() => setSelectedId(null)}
           />
         )}
       </div>
+
+      {undo && <UndoBar undo={undo} onDone={() => setUndo(null)} />}
 
       {posterOpen && (
         <PosterDialog

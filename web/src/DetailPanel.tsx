@@ -8,6 +8,7 @@ import {
   useDeleteRelationship,
   useRelationshipTypes,
   useUpdateRelationship,
+  type MemberSnapshot,
 } from './queries'
 import { useTermPicker } from './TermPicker'
 import { fullName, type Member, type Relationship, type RelationshipType } from './types'
@@ -18,7 +19,10 @@ interface Props {
   members: Member[]
   relationships: Relationship[]
   onEdit: () => void
-  onDeleted: () => void
+  /** Called after the person was deleted, with what is needed to bring them back. */
+  onDeleted: (snapshot: MemberSnapshot) => void
+  /** Called after a relationship was removed, with a short description for the undo bar. */
+  onRelationshipRemoved: (rel: Relationship, description: string) => void
   onSelect: (id: number) => void
   onClose: () => void
 }
@@ -116,6 +120,7 @@ export default function DetailPanel({
   relationships,
   onEdit,
   onDeleted,
+  onRelationshipRemoved,
   onSelect,
   onClose,
 }: Props) {
@@ -185,9 +190,15 @@ export default function DetailPanel({
           className="danger"
           disabled={del.isPending}
           onClick={() => {
-            if (confirm(`Delete ${fullName(member)}? Their relationships will be removed too.`)) {
-              del.mutate(member.id, { onSuccess: onDeleted })
+            // Remember the person and everything linking them to others, so Undo can restore it.
+            const snapshot: MemberSnapshot = {
+              member,
+              relationships: relationships.filter((r) => r.member_1 === member.id || r.member_2 === member.id),
             }
+            // mutateAsync, not mutate(..., {onSuccess}): this panel unmounts the moment the person
+            // leaves the list, and callbacks passed to mutate() are dropped once that happens.
+            // Failures show through `del.error`.
+            del.mutateAsync(member.id).then(() => onDeleted(snapshot), () => undefined)
           }}
         >
           <Trash size={15} /> Delete
@@ -245,7 +256,12 @@ export default function DetailPanel({
                     className="ghost icon-btn mini x"
                     aria-label={`Remove relationship with ${o ? fullName(o) : other}`}
                     disabled={delRel.isPending}
-                    onClick={() => delRel.mutate(rel.id)}
+                    onClick={() =>
+                      delRel.mutateAsync(rel.id).then(
+                        () => onRelationshipRemoved(rel, `Removed ${label.toLowerCase()} link with ${o ? fullName(o) : 'someone'}`),
+                        () => undefined,
+                      )
+                    }
                   >
                     <Close size={14} />
                   </button>

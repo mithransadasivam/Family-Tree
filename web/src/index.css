@@ -1509,3 +1509,62 @@ input[type='checkbox']:checked::after {
     padding: 20px;
   }
 }
+
+/* undo bar */
+.undo-bar {
+  position: fixed;
+  z-index: 60;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  width: min(460px, calc(100vw - 24px));
+  overflow: hidden;
+  background: var(--glass-strong);
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  animation: undo-in 0.4s var(--ease) both;
+}
+@keyframes undo-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 16px);
+  }
+}
+.undo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px 12px 18px;
+}
+.undo-msg {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink);
+  font-weight: 500;
+}
+.undo-btn {
+  padding: 7px 16px;
+}
+.undo-timer {
+  height: 3px;
+  background: var(--gold);
+  transform-origin: left;
+  animation-name: undo-countdown;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+.undo-bar:hover .undo-timer,
+.undo-bar:focus-within .undo-timer {
+  animation-play-state: paused;
+}
+@keyframes undo-countdown {
+  to {
+    transform: scaleX(0);
+  }
+}
+@media (max-width: 760px) {
+  .undo-bar {
+    bottom: 12px;
+  }
+}

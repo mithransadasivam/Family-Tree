@@ -49,6 +49,9 @@ export interface Member {
   last_name: string
   phone: string
   email: string
+  address: string
+  /** Id of the user account this person is linked to, if any. */
+  user: number | null
   photo_url: string
   birth_date: string | null
   birth_place: string

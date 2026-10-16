@@ -200,3 +200,82 @@ export function useDeleteRelationship(treeId: number) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['relationships', treeId] }),
   })
 }
+
+export interface MemberSnapshot {
+  member: Member
+  relationships: Relationship[]
+}
+
+/**
+ * Undo support. The backend deletes permanently, so a restore re-creates the person (they get
+ * a new id) and re-links each relationship they had to that new id.
+ */
+export function useRestore(treeId: number) {
+  const qc = useQueryClient()
+  const refresh = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: ['members', treeId] }),
+      qc.invalidateQueries({ queryKey: ['relationships', treeId] }),
+      qc.invalidateQueries({ queryKey: ['edit-history', treeId] }),
+    ])
+
+  const relationship = async (r: Pick<Relationship, 'member_1' | 'member_2' | 'relationship_type'>) => {
+    try {
+      await api<Relationship>(
+        ENDPOINTS.relationshipsCreate,
+        json('POST', {
+          tree: treeId,
+          member_1: r.member_1,
+          member_2: r.member_2,
+          relationship_type: r.relationship_type,
+        }),
+      )
+    } finally {
+      await refresh()
+    }
+  }
+
+  const member = async ({ member: m, relationships }: MemberSnapshot): Promise<Member> => {
+    const created = await api<Member>(
+      ENDPOINTS.membersCreate,
+      json('POST', {
+        tree: treeId,
+        ...(m.user !== null && m.user !== undefined ? { user: m.user } : {}),
+        first_name: m.first_name,
+        last_name: m.last_name,
+        phone: m.phone,
+        email: m.email,
+        address: m.address,
+        photo_url: m.photo_url,
+        birth_date: m.birth_date,
+        birth_place: m.birth_place,
+        death_date: m.death_date,
+        death_place: m.death_place,
+      }),
+    )
+    const swap = (id: number) => (id === m.id ? created.id : id)
+    const results = await Promise.allSettled(
+      relationships.map((r) =>
+        api<Relationship>(
+          ENDPOINTS.relationshipsCreate,
+          json('POST', {
+            tree: treeId,
+            member_1: swap(r.member_1),
+            member_2: swap(r.member_2),
+            relationship_type: r.relationship_type,
+          }),
+        ),
+      ),
+    )
+    await refresh()
+    const failed = results.filter((x) => x.status === 'rejected').length
+    if (failed > 0) {
+      throw new Error(
+        `${m.first_name} was restored, but ${failed} of ${relationships.length} relationships could not be.`,
+      )
+    }
+    return created
+  }
+
+  return { member, relationship }
+}
