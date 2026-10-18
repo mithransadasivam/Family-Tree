@@ -184,17 +184,32 @@ export default function DetailPanel({
           <Avatar member={member} size={84} />
         </div>
         <h2 className="person-name">
-          <span className="name-text">{fullName(member)}</span>
-          {genders.get(member.id) && (
-            <span
-              className={`gender-icon ${genders.get(member.id)}`}
-              role="img"
-              aria-label={genders.get(member.id) === 'male' ? 'Male' : 'Female'}
-              title={genders.get(member.id) === 'male' ? 'Male' : 'Female'}
-            >
-              {genders.get(member.id) === 'male' ? <Mars size={22} /> : <Venus size={22} />}
-            </span>
-          )}
+          {(() => {
+            // Keep the icon glued to the last word so it can never drift away from the name.
+            const name = fullName(member)
+            const cut = name.lastIndexOf(' ')
+            const head = cut > 0 ? name.slice(0, cut + 1) : ''
+            const tail = cut > 0 ? name.slice(cut + 1) : name
+            const g = genders.get(member.id)
+            return (
+              <>
+                {head}
+                <span className="nowrap">
+                  {tail}
+                  {g && (
+                    <span
+                      className={`gender-icon ${g}`}
+                      role="img"
+                      aria-label={g === 'male' ? 'Male' : 'Female'}
+                      title={g === 'male' ? 'Male' : 'Female'}
+                    >
+                      {g === 'male' ? <Mars size={22} /> : <Venus size={22} />}
+                    </span>
+                  )}
+                </span>
+              </>
+            )
+          })()}
         </h2>
         {lifespan(member) && <span className="eyebrow">{lifespan(member)}</span>}
         <div className="facts">

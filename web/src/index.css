@@ -1685,21 +1685,15 @@ button.gender-toggle > span {
   color: hsl(335 70% 40%);
 }
 
-/* name + gender icon: always one row, icon beside the (possibly wrapped) name, never under it */
-.person-head h2.person-name {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  max-width: 100%;
-}
-.person-name .name-text {
-  min-width: 0;
+/* name + gender icon: the icon is glued to the last word, so it stays right after the name */
+.person-name {
   text-wrap: balance;
   overflow-wrap: anywhere;
 }
+.person-name .nowrap {
+  white-space: nowrap;
+}
 .person-name .gender-icon {
-  flex: none;
-  margin: 0;
-  vertical-align: baseline;
+  margin-left: 8px;
+  vertical-align: -3px;
 }
