@@ -210,6 +210,7 @@ export default function TreePage() {
       {editing && (
         <MemberForm
           treeId={treeId}
+          members={memberList}
           member={editing === 'new' ? undefined : editing}
           onClose={() => setEditing(null)}
           onSaved={(m) => {

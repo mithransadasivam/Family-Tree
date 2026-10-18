@@ -1568,3 +1568,51 @@ input[type='checkbox']:checked::after {
     bottom: 12px;
   }
 }
+
+/* required-field marker, relationship fieldset, small print */
+.req {
+  color: var(--gold);
+  font-weight: 700;
+}
+.muted.small {
+  font-size: 0.8rem;
+}
+.rel-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.rel-fieldset legend {
+  padding: 0;
+  margin-bottom: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+@media (max-width: 760px) {
+  .topbar {
+    padding-inline: 12px;
+  }
+  .topbar-actions {
+    gap: 6px;
+  }
+  .topbar-actions .label {
+    display: none;
+  }
+}
+
+/* Inputs inside two-column rows must be allowed to shrink with the card. */
+.field {
+  min-width: 0;
+}
+.field input,
+.field select {
+  width: 100%;
+  min-width: 0;
+}
+.modal {
+  overflow-x: hidden;
+}

@@ -13,6 +13,31 @@ def get_current_user(request):
     return User.objects.get(id=user_id)
 
 
+# What a relationship type says about member_1 relative to member_2. A person who is the
+# parent / grandparent of someone (member_1 of a "Father" link, or member_2 of a "Son" link)
+# is a root of the tree: deleting them would orphan their descendants.
+PARENT_TYPES = {
+    'Father', 'Mother', 'Stepfather', 'Stepmother', 'Step Father', 'Step Mother',
+    'Grandfather', 'Grandmother',
+}
+CHILD_TYPES = {
+    'Son', 'Daughter', 'Stepson', 'Stepdaughter', 'Step Son', 'Step Daughter',
+    'Adopted Son', 'Adopted Daughter', 'Grandson', 'Granddaughter',
+}
+
+
+def has_descendants(member):
+    from relationships.models import Relationship
+    return (
+        Relationship.objects.filter(
+            member_1=member, relationship_type__type_name__in=PARENT_TYPES
+        ).exists()
+        or Relationship.objects.filter(
+            member_2=member, relationship_type__type_name__in=CHILD_TYPES
+        ).exists()
+    )
+
+
 class FamilyMemberListView(APIView):
     def get(self, request):
         tree_id = request.query_params.get('tree_id')
@@ -73,6 +98,12 @@ class FamilyMemberDetailView(APIView):
         member, error = self.get_member(member_id, user)
         if error:
             return error
+        if has_descendants(member):
+            return Response(
+                {'error': f'{member.first_name} has children in the family and cannot be deleted. '
+                          'Remove their children (or those relationships) first.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         name = f'{member.first_name} {member.last_name}'
         tree = member.tree
         member.delete()

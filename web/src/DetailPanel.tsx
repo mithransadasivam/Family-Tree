@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Avatar, { lifespan } from './Avatar'
-import { classify, GROUP_ORDER, type Group } from './graph'
+import { classify, GROUP_ORDER, hasDescendants, type Group } from './graph'
 import { Close, Edit, Trash } from './Icons'
 import {
   useAddRelationship,
@@ -132,6 +132,9 @@ export default function DetailPanel({
   const [editingRel, setEditingRel] = useState<number | null>(null)
   const { typeId, picker, reset } = useTermPicker(types.data)
 
+  // A parent (or grandparent) is a root of the family: they cannot be deleted while anyone is linked below them.
+  const isRoot = hasDescendants(member.id, relationships)
+
   const byId = new Map(members.map((m) => [m.id, m]))
   const candidates = members.filter((m) => m.id !== member.id)
 
@@ -188,7 +191,8 @@ export default function DetailPanel({
         </button>
         <button
           className="danger"
-          disabled={del.isPending}
+          disabled={del.isPending || isRoot}
+          title={isRoot ? `${member.first_name} has children in the family, so they can't be deleted` : undefined}
           onClick={() => {
             // Remember the person and everything linking them to others, so Undo can restore it.
             const snapshot: MemberSnapshot = {
@@ -204,6 +208,11 @@ export default function DetailPanel({
           <Trash size={15} /> Delete
         </button>
       </div>
+      {isRoot && (
+        <p className="muted small" style={{ textAlign: 'center', marginTop: 10 }}>
+          {member.first_name} has children in the family, so they can&apos;t be deleted. Remove their children first.
+        </p>
+      )}
       {del.error && (
         <p role="alert" className="error" style={{ marginTop: 10, textAlign: 'center' }}>
           {del.error.message}

@@ -124,31 +124,70 @@ export function useCreateTree() {
   })
 }
 
+/** What the edit form can change. Death details are intentionally not editable here. */
 export interface MemberInput {
   first_name: string
   last_name: string
   birth_date: string
   birth_place: string
-  death_date: string
-  death_place: string
   photo_url: string
 }
 
 // Blank dates must be null for DRF's DateField; blank text fields are fine as ''.
-const toPayload = (i: MemberInput) => ({
-  ...i,
-  birth_date: i.birth_date || null,
-  death_date: i.death_date || null,
-})
+const toPayload = (i: MemberInput) => ({ ...i, birth_date: i.birth_date || null })
 
 export function useSaveMember(treeId: number) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, input }: { id?: number; input: MemberInput }) =>
-      id === undefined
-        ? api<Member>(ENDPOINTS.membersCreate, json('POST', { tree: treeId, ...toPayload(input) }))
-        : api<Member>(ENDPOINTS.member(id), json('PATCH', toPayload(input))),
+    mutationFn: ({ id, input }: { id: number; input: MemberInput }) =>
+      api<Member>(ENDPOINTS.member(id), json('PATCH', toPayload(input))),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['members', treeId] }),
+  })
+}
+
+export interface NewPerson {
+  first_name: string
+  last_name: string
+  /** Who they are connected to and how: "[new person] is the <type> of <otherId>". Omit only for the first person. */
+  relationship?: { otherId: number; typeId: number }
+}
+
+/**
+ * Create a person together with their first relationship. If the relationship cannot be
+ * created the person is removed again, so nobody ends up floating unconnected in the tree.
+ */
+export function useCreatePerson(treeId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (p: NewPerson) => {
+      const person = await api<Member>(
+        ENDPOINTS.membersCreate,
+        json('POST', { tree: treeId, first_name: p.first_name, last_name: p.last_name }),
+      )
+      if (p.relationship) {
+        try {
+          await api<Relationship>(
+            ENDPOINTS.relationshipsCreate,
+            json('POST', {
+              tree: treeId,
+              member_1: person.id,
+              member_2: p.relationship.otherId,
+              relationship_type: p.relationship.typeId,
+            }),
+          )
+        } catch (e) {
+          await api<unknown>(ENDPOINTS.member(person.id), { method: 'DELETE' }).catch(() => undefined)
+          throw e
+        }
+      }
+      return person
+    },
+    onSettled: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: ['members', treeId] }),
+        qc.invalidateQueries({ queryKey: ['relationships', treeId] }),
+        qc.invalidateQueries({ queryKey: ['edit-history', treeId] }),
+      ]),
   })
 }
 

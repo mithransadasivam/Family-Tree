@@ -228,3 +228,16 @@ export function depthOf(u: Unit | null): number {
 export function countPeople(u: Unit): number {
   return u.people.length + u.children.reduce((n, c) => n + countPeople(c), 0)
 }
+
+/**
+ * True if anyone is recorded as this person's child or grandchild. Such a person is a "root"
+ * of the family and cannot be deleted (the server enforces the same rule).
+ */
+export function hasDescendants(personId: number, rels: Relationship[]): boolean {
+  return rels.some((r) => {
+    const t = r.relationship_type_name
+    if (r.member_1 === personId && (PARENT.has(t) || GRANDPARENT.has(t))) return true
+    if (r.member_2 === personId && (CHILD.has(t) || GRANDCHILD.has(t))) return true
+    return false
+  })
+}
