@@ -40,7 +40,7 @@ Then commit `webapp/` and deploy the backend to Railway. Do not deploy from a pl
 | Tree view: pan/zoom, couples drawn side by side with a rings link, children hanging from the pair, every family line shown (in-laws' parents linked to their child), search that pans to the person (`TreeView.tsx`, `graph.ts`) | built, tested |
 | Members: add, edit, delete, photo by URL (`MemberForm.tsx`, `DetailPanel.tsx`) | add/edit/delete tested via API; form UI partly tested |
 | Relationships: add, edit, remove; 34 canonical types, English picker grouped by category (`TermPicker.tsx`; other-language terms from Android are kept in `relationshipTerms.ts` but not shown); grandparent links drop a generation | built, add/edit tested |
-| Top bar: "Create a family" and "Join with a code" dialogs next to Sign out (`FamilyDialogs.tsx`, `Protected.tsx`) | built, tested |
+| Top bar: "Create a family" and "Join with a code" dialogs next to Sign out, shown only on the families page, not inside a family (`FamilyDialogs.tsx`, `Protected.tsx`) | built, tested |
 | Add person: First name* + Last name* + a required relationship ("X is the ___ of Y"; none needed for the first person); birth details/photo via Edit; no death fields (`MemberForm.tsx`) | built, tested |
 | Root protection: a person with children/grandchildren cannot be deleted (UI disabled + server rule in `family_members/views.py`) | built, tested |
 | Relationship rules: one link per pair (no Husband+Brother), no parent/child loops, same family only; enforced by the server (`relationships/rules.py`), and already-connected people are hidden in the pickers | built, tested |

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, Navigate, Outlet, useNavigate } from 'react-router-dom'
+import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { isAuthError, logout } from './auth'
 import { CreateFamilyDialog, JoinFamilyDialog } from './FamilyDialogs'
@@ -19,6 +19,8 @@ export default function Protected() {
   const { isLoading, error } = useTrees()
   const qc = useQueryClient()
   const nav = useNavigate()
+  // Create / Join belong to the families list. Inside a family they would only be in the way.
+  const onFamiliesPage = useLocation().pathname === '/'
   const { theme, toggle } = useTheme()
   const [dialog, setDialog] = useState<'create' | 'join' | null>(null)
 
@@ -40,12 +42,16 @@ export default function Protected() {
           <Logo />
         </Link>
         <div className="topbar-actions">
-          <button className="ghost" onClick={ctx.openJoin} title="Join a family with a code">
-            <Users size={16} /> <span className="label">Join with a code</span>
-          </button>
-          <button onClick={ctx.openCreate} title="Create a family">
-            <Plus size={16} /> <span className="label">Create a family</span>
-          </button>
+          {onFamiliesPage && (
+            <>
+              <button className="ghost" onClick={ctx.openJoin} title="Join a family with a code">
+                <Users size={16} /> <span className="label">Join with a code</span>
+              </button>
+              <button onClick={ctx.openCreate} title="Create a family">
+                <Plus size={16} /> <span className="label">Create a family</span>
+              </button>
+            </>
+          )}
           <button
             className="ghost icon-btn"
             onClick={toggle}
