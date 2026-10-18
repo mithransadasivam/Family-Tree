@@ -1622,3 +1622,46 @@ input[type='checkbox']:checked::after {
 .modal {
   overflow-x: hidden;
 }
+
+/* one-click male / female toggle */
+button.gender-toggle {
+  align-self: flex-start;
+  gap: 10px;
+  padding: 9px 18px 9px 14px;
+  min-width: 190px;
+  justify-content: flex-start;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--glass-hi);
+  border: 1px solid var(--line-strong);
+  box-shadow: none;
+}
+button.gender-toggle:hover:not(:disabled) {
+  background: var(--glass);
+  filter: none;
+}
+button.gender-toggle.unset {
+  color: var(--ink-3);
+  border-style: dashed;
+}
+button.gender-toggle.male {
+  color: hsl(205 75% 62%);
+  border-color: hsl(205 75% 55% / 0.7);
+  background: hsl(205 75% 55% / 0.12);
+}
+button.gender-toggle.female {
+  color: hsl(335 75% 66%);
+  border-color: hsl(335 75% 60% / 0.7);
+  background: hsl(335 75% 60% / 0.12);
+}
+:root[data-theme='light'] button.gender-toggle.male {
+  color: hsl(205 80% 36%);
+}
+:root[data-theme='light'] button.gender-toggle.female {
+  color: hsl(335 70% 40%);
+}
+button.gender-toggle > span {
+  color: inherit;
+}

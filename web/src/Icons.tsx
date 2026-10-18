@@ -123,3 +123,16 @@ export const Share = ({ size, ...p }: P) => (
     <path d="M12 15V4M8 8l4-4 4 4M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" />
   </svg>
 )
+export const Mars = ({ size, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <circle cx="10" cy="14" r="5.5" />
+    <path d="M14 10l6-6M15 4h5v5" />
+  </svg>
+)
+export const Venus = ({ size, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <circle cx="12" cy="9" r="5.5" />
+    <path d="M12 14.5V21M8.5 18h7" />
+  </svg>
+)
+

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { FEMALE_TYPES, MALE_TYPES } from './graph'
+import { Mars, Venus } from './Icons'
 import { useCreatePerson, useRelationshipTypes, useSaveMember } from './queries'
 import { useTermPicker } from './TermPicker'
 import { fullName, type Gender, type Member } from './types'
@@ -21,33 +22,42 @@ const Req = () => (
   </span>
 )
 
-const GENDERS: { id: Exclude<Gender, ''>; label: string }[] = [
-  { id: 'male', label: 'Male' },
-  { id: 'female', label: 'Female' },
-  { id: 'other', label: 'Other' },
-]
-
-/** Male / Female / Other choice. Shown as a segmented control so it is one click. */
+/**
+ * One-click gender toggle: first click = male, next click = female, and so on back and forth.
+ * Until the first click nothing is chosen (which is what makes it a required field).
+ */
 function GenderField({ value, onChange, required }: { value: Gender; onChange: (g: Gender) => void; required?: boolean }) {
+  const chosen = value === 'male' || value === 'female'
+  const label = value === 'male' ? 'Male' : value === 'female' ? 'Female' : 'Click to choose'
   return (
     <div className="field" role="group" aria-label="Gender">
       <span>
         Gender
         {required && <Req />}
       </span>
-      <div className="seg">
-        {GENDERS.map((g) => (
-          <button
-            key={g.id}
-            type="button"
-            className={value === g.id ? 'on' : ''}
-            aria-pressed={value === g.id}
-            onClick={() => onChange(g.id)}
-          >
-            {g.label}
-          </button>
-        ))}
-      </div>
+      <button
+        type="button"
+        className={`gender-toggle ${chosen ? value : 'unset'}`}
+        onClick={() => onChange(value === 'male' ? 'female' : 'male')}
+        aria-label={
+          chosen
+            ? `Gender: ${label}. Click to switch to ${value === 'male' ? 'female' : 'male'}.`
+            : 'Gender: not chosen. Click to choose male; click again for female.'
+        }
+        title={chosen ? 'Click to switch' : 'Click to choose'}
+      >
+        {value === 'female' ? (
+          <Venus size={22} />
+        ) : value === 'male' ? (
+          <Mars size={22} />
+        ) : (
+          <>
+            <Mars size={18} />
+            <Venus size={18} />
+          </>
+        )}
+        <span>{label}</span>
+      </button>
     </div>
   )
 }
@@ -77,7 +87,7 @@ function AddForm({ treeId, members, onClose, onSaved }: Omit<Props, 'member'>) {
   // The first person in an empty family has nobody to connect to; everyone after must connect.
   const isFirst = members.length === 0
   const valid =
-    first.trim() !== '' && last.trim() !== '' && gender !== '' && (isFirst || (otherId !== '' && typeId !== undefined))
+    first.trim() !== '' && last.trim() !== '' && (gender === 'male' || gender === 'female') && (isFirst || (otherId !== '' && typeId !== undefined))
   const others = [...members].sort((a, b) => fullName(a).localeCompare(fullName(b)))
 
   return (
