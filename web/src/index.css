@@ -1684,3 +1684,22 @@ button.gender-toggle > span {
 :root[data-theme='light'] .gender-icon.female {
   color: hsl(335 70% 40%);
 }
+
+/* name + gender icon: always one row, icon beside the (possibly wrapped) name, never under it */
+.person-head h2.person-name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  max-width: 100%;
+}
+.person-name .name-text {
+  min-width: 0;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.person-name .gender-icon {
+  flex: none;
+  margin: 0;
+  vertical-align: baseline;
+}

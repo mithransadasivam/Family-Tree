@@ -183,8 +183,8 @@ export default function DetailPanel({
         <div className="avatar-halo">
           <Avatar member={member} size={84} />
         </div>
-        <h2>
-          {fullName(member)}
+        <h2 className="person-name">
+          <span className="name-text">{fullName(member)}</span>
           {genders.get(member.id) && (
             <span
               className={`gender-icon ${genders.get(member.id)}`}
