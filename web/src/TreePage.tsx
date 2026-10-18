@@ -8,7 +8,7 @@ import { useMembers, useRelationships, useRestore, useTrees, type MemberSnapshot
 import Rings from './Rings'
 import TreeView from './TreeView'
 import UndoBar, { type Undoable } from './UndoBar'
-import { buildForest, buildGraph, countPeople, depthOf, findRoots } from './graph'
+import { buildForest, buildGraph, countPeople, depthOf, findRoots, inferGenders } from './graph'
 import { fullName, type Member, type Relationship } from './types'
 
 export default function TreePage() {
@@ -46,6 +46,7 @@ export default function TreePage() {
     return best
   }, [memberList, byId, graph])
   const generations = Math.max(0, ...forest.map(depthOf))
+  const genders = useMemo(() => inferGenders(rels.data ?? [], memberList), [rels.data, memberList])
 
   const selected = selectedId !== null ? byId.get(selectedId) : undefined
   const matches = query.trim()
@@ -164,7 +165,7 @@ export default function TreePage() {
         )}
 
         {!loading && !error && forest.length > 0 && (
-          <TreeView forest={forest} selectedId={selectedId} onSelect={setSelectedId} focus={focus} />
+          <TreeView forest={forest} genders={genders} selectedId={selectedId} onSelect={setSelectedId} focus={focus} />
         )}
 
         {!loading && !error && forest.length === 0 && (
@@ -199,6 +200,7 @@ export default function TreePage() {
       {posterOpen && (
         <PosterDialog
           forest={forest}
+          genders={genders}
           members={memberList}
           treeName={tree?.tree_name ?? 'Family tree'}
           people={memberList.length}

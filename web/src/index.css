@@ -1704,3 +1704,32 @@ button.gender-toggle > span {
   margin: 0 0 0 8px;
   transform: translateY(-50%);
 }
+
+/* gender badge on the card's avatar */
+.node-gender {
+  pointer-events: none;
+}
+.node-gender-bg {
+  fill: var(--node-fill);
+  stroke: currentColor;
+  stroke-width: 1.4;
+}
+.node-gender svg {
+  stroke: currentColor;
+  fill: none;
+}
+.node .node-gender circle {
+  stroke: currentColor;
+}
+.node-gender.male {
+  color: hsl(205 75% 62%);
+}
+.node-gender.female {
+  color: hsl(335 75% 66%);
+}
+:root[data-theme='light'] .node-gender.male {
+  color: hsl(205 80% 36%);
+}
+:root[data-theme='light'] .node-gender.female {
+  color: hsl(335 70% 40%);
+}

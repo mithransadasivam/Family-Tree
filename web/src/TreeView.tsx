@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { hueFor, initials, photoSrc } from './Avatar'
 import type { Unit } from './graph'
-import { Fit } from './Icons'
+import { Fit, Mars, Venus } from './Icons'
 import { AV, cardLines, G, H, layoutForest, linkPath, PAD, personX, W } from './layout'
+import type { KnownGender } from './graph'
 import { fullName, type Member } from './types'
 
 function Face({ m, cx, cy, r, id }: { m: Member; cx: number; cy: number; r: number; id: string }) {
@@ -40,6 +41,7 @@ function Card({
   y,
   depth,
   selected,
+  gender,
   onPick,
 }: {
   m: Member
@@ -47,6 +49,7 @@ function Card({
   y: number
   depth: number
   selected: boolean
+  gender?: KnownGender
   onPick: (id: number) => void
 }) {
   const ax = x - W / 2 + 42
@@ -72,6 +75,15 @@ function Card({
       <rect className="node-card" x={x - W / 2} y={y - H / 2} width={W} height={H} rx={22} />
       <circle className="node-ring" cx={ax} cy={y} r={AV + 4} />
       <Face m={m} cx={ax} cy={y} r={AV} id={`clip-${m.id}`} />
+      {gender && (
+        // Small badge on the avatar's lower-right corner: shows who is male / female without a click.
+        <g className={`node-gender ${gender}`} role="img" aria-label={gender === 'male' ? 'Male' : 'Female'}>
+          <circle className="node-gender-bg" cx={ax + 20} cy={y + 20} r={9.5} />
+          <g transform={`translate(${ax + 20 - 6} ${y + 20 - 6})`}>
+            {gender === 'male' ? <Mars size={12} strokeWidth={2.6} /> : <Venus size={12} strokeWidth={2.6} />}
+          </g>
+        </g>
+      )}
       {cardLines(m).map((l) => (
         <text
           key={l.kind}
@@ -100,6 +112,8 @@ function RingsLink({ x, y }: { x: number; y: number }) {
 }
 
 interface Props {
+  /** Gender per person id (recorded, or inferred from relationships); people missing here get no badge. */
+  genders: Map<number, KnownGender>
   forest: Unit[]
   selectedId: number | null
   onSelect: (id: number) => void
@@ -113,7 +127,7 @@ interface View {
   k: number
 }
 
-export default function TreeView({ forest, selectedId, onSelect, focus }: Props) {
+export default function TreeView({ forest, genders, selectedId, onSelect, focus }: Props) {
   const box = useRef<HTMLDivElement>(null)
   const content = useRef<SVGGElement>(null)
   const view = useRef<View>({ x: 0, y: 0, k: 1 })
@@ -282,6 +296,7 @@ export default function TreeView({ forest, selectedId, onSelect, focus }: Props)
                     y={p.y}
                     depth={p.depth}
                     selected={m.id === selectedId}
+                    gender={genders.get(m.id)}
                     onPick={pick}
                   />
                 ))}

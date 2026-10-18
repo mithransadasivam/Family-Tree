@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Unit } from './graph'
+import type { KnownGender, Unit } from './graph'
 import { Close, Download, Printer, Share } from './Icons'
 import {
   buildPoster,
@@ -15,6 +15,7 @@ import {
 import type { Member } from './types'
 
 interface Props {
+  genders: Map<number, KnownGender>
   forest: Unit[]
   members: Member[]
   treeName: string
@@ -34,7 +35,7 @@ function save(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }
 
-export default function PosterDialog({ forest, members, treeName, people, generations, onClose }: Props) {
+export default function PosterDialog({ genders, forest, members, treeName, people, generations, onClose }: Props) {
   const [theme, setTheme] = useState<PosterTheme>('light')
   const [title, setTitle] = useState(treeName)
   const [showDates, setShowDates] = useState(true)
@@ -70,6 +71,7 @@ export default function PosterDialog({ forest, members, treeName, people, genera
             title: title.trim() || treeName,
             showDates,
             photos: showPhotos ? (photos.current ?? undefined) : undefined,
+            genders,
             people,
             generations,
           }, fonts),
@@ -83,7 +85,7 @@ export default function PosterDialog({ forest, members, treeName, people, genera
       cancelled = true
       clearTimeout(t)
     }
-  }, [forest, members, theme, title, treeName, showDates, showPhotos, people, generations])
+  }, [forest, members, genders, theme, title, treeName, showDates, showPhotos, people, generations])
 
   useEffect(() => {
     if (!poster) return

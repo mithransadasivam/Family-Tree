@@ -2,7 +2,7 @@ import frauncesUrl from '@fontsource-variable/fraunces/files/fraunces-latin-wght
 import frauncesItalicUrl from '@fontsource-variable/fraunces/files/fraunces-latin-wght-italic.woff2?url'
 import interUrl from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url'
 import { hueFor, initials } from './Avatar'
-import type { Unit } from './graph'
+import type { KnownGender, Unit } from './graph'
 import { AV, cardLines, clip, G, H, layoutForest, linkPath, personX, W } from './layout'
 import { ringData } from './Rings'
 import type { Member } from './types'
@@ -15,6 +15,8 @@ export interface PosterOptions {
   showDates: boolean
   /** member id -> image as a data: URI (photos that could be fetched). Omit to draw initials only. */
   photos?: Map<number, string>
+  /** person id -> gender, for the small badge on each card. */
+  genders?: Map<number, KnownGender>
   people: number
   generations: number
 }
@@ -31,18 +33,20 @@ interface Palette {
   cardLine: string
   ring: string
   initL: number
+  male: string
+  female: string
 }
 
 const PALETTES: Record<PosterTheme, Palette> = {
   light: {
     bg: '#f4eee0', bg2: '#ece3cf', ink: '#1b2a23', ink2: '#4a5b51', ink3: '#7b887f',
     sage: '#1d6a51', gold: '#a96a12', card: '#fffcf4', cardLine: 'rgba(70,55,25,0.28)',
-    ring: '#1d6a51', initL: 28,
+    ring: '#1d6a51', initL: 28, male: 'hsl(205 80% 36%)', female: 'hsl(335 70% 40%)',
   },
   dark: {
     bg: '#07100d', bg2: '#0e1d17', ink: '#eef4ee', ink2: '#a9bdb2', ink3: '#70877b',
     sage: '#7fd6b0', gold: '#ecc277', card: '#10201a', cardLine: 'rgba(190,235,214,0.24)',
-    ring: '#7fd6b0', initL: 70,
+    ring: '#7fd6b0', initL: 70, male: 'hsl(205 75% 62%)', female: 'hsl(335 75% 66%)',
   },
 }
 
@@ -184,6 +188,22 @@ export function buildPoster(forest: Unit[], opts: PosterOptions, fonts: string, 
       ? (defs.push(`<clipPath id="f${m.id}"><circle cx="${ax}" cy="${y}" r="${AV}"/></clipPath>`),
         `<image href="${photo}" x="${ax - AV}" y="${y - AV}" width="${AV * 2}" height="${AV * 2}" clip-path="url(#f${m.id})" preserveAspectRatio="xMidYMid slice"/>`)
       : `<circle cx="${ax}" cy="${y}" r="${AV}" fill="${hsl(m.id, 0.2)}"/><text x="${ax}" y="${y}" text-anchor="middle" dominant-baseline="central" font-family="${sans}" font-size="${(AV * 0.58).toFixed(1)}" font-weight="600" fill="${hsl(m.id)}">${esc(initials(m))}</text>`
+    const g = opts.genders?.get(m.id)
+    const badge = g
+      ? (() => {
+          const col = g === 'male' ? c.male : c.female
+          const bx = ax + 20
+          const by = y + 20
+          const glyph =
+            g === 'male'
+              ? '<circle cx="10" cy="14" r="5.5"/><path d="M14 10l6-6M15 4h5v5"/>'
+              : '<circle cx="12" cy="9" r="5.5"/><path d="M12 14.5V21M8.5 18h7"/>'
+          return (
+            `<circle cx="${bx}" cy="${by}" r="9.5" fill="${c.card}" stroke="${col}" stroke-width="1.4"/>` +
+            `<g transform="translate(${bx - 6} ${by - 6}) scale(${12 / 24})" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${glyph}</g>`
+          )
+        })()
+      : ''
     const text = cardLines(m, opts.showDates)
       .map((l) => {
         const y2 = y + l.dy
@@ -198,6 +218,7 @@ export function buildPoster(forest: Unit[], opts: PosterOptions, fonts: string, 
       `<rect x="${x - W / 2}" y="${y - H / 2}" width="${W}" height="${H}" rx="22" fill="${c.card}" stroke="${c.cardLine}" stroke-width="1.4"/>` +
       `<circle cx="${ax}" cy="${y}" r="${AV + 4}" fill="none" stroke="${c.cardLine}" stroke-width="1.6"/>` +
       face +
+      badge +
       text
     )
   }
