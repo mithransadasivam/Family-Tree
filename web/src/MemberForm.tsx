@@ -23,12 +23,13 @@ const Req = () => (
 )
 
 /**
- * One-click gender toggle: first click = male, next click = female, and so on back and forth.
- * Until the first click nothing is chosen (which is what makes it a required field).
+ * One-click gender toggle: click to switch between male and female. When adding someone it starts
+ * on male. When editing someone whose gender was never recorded it shows "Not set" until clicked,
+ * so merely opening Edit never invents a gender.
  */
 function GenderField({ value, onChange, required }: { value: Gender; onChange: (g: Gender) => void; required?: boolean }) {
   const chosen = value === 'male' || value === 'female'
-  const label = value === 'male' ? 'Male' : value === 'female' ? 'Female' : 'Click to choose'
+  const label = value === 'male' ? 'Male' : value === 'female' ? 'Female' : 'Not set'
   return (
     <div className="field" role="group" aria-label="Gender">
       <span>
@@ -42,9 +43,9 @@ function GenderField({ value, onChange, required }: { value: Gender; onChange: (
         aria-label={
           chosen
             ? `Gender: ${label}. Click to switch to ${value === 'male' ? 'female' : 'male'}.`
-            : 'Gender: not chosen. Click to choose male; click again for female.'
+            : 'Gender: not set. Click to set it to male; click again for female.'
         }
-        title={chosen ? 'Click to switch' : 'Click to choose'}
+        title="Click to switch"
       >
         {value === 'female' ? (
           <Venus size={22} />
@@ -80,7 +81,7 @@ function AddForm({ treeId, members, onClose, onSaved }: Omit<Props, 'member'>) {
   const types = useRelationshipTypes()
   const [first, setFirst] = useState('')
   const [last, setLast] = useState('')
-  const [gender, setGender] = useState<Gender>('')
+  const [gender, setGender] = useState<Gender>('male')
   const [otherId, setOtherId] = useState('')
   const { typeId, picker } = useTermPicker(types.data, undefined, allowFor(gender))
 
