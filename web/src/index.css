@@ -1813,3 +1813,49 @@ button.gender-toggle > span {
     text-align: center;
   }
 }
+
+.menu-wrap {
+  position: relative;
+}
+button.profile-chip {
+  box-shadow: none;
+  cursor: pointer;
+}
+.profile-chip .chev {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 170px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  background: var(--glass-strong);
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  z-index: 60;
+}
+.menu a,
+.menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+.menu a:hover,
+.menu button:hover {
+  background: var(--glass-hi);
+}
