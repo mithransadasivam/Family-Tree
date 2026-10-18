@@ -34,7 +34,30 @@ export function useUpdateMe() {
   })
 }
 
-export const useJoinRequests = (treeId: number, enabled: boolean) =>
+/** Upload (a ready-made JPEG blob) or remove the signed-in user's own profile picture. */
+export function useAvatar() {
+  const qc = useQueryClient()
+  const done = (me: User) => {
+    qc.setQueryData(['me'], me)
+    return qc.invalidateQueries({ queryKey: ['me'] })
+  }
+  return {
+    upload: useMutation({
+      mutationFn: (jpeg: Blob) => {
+        const body = new FormData()
+        body.append('file', jpeg, 'avatar.jpg')
+        return api<User>(ENDPOINTS.avatar, { method: 'POST', body })
+      },
+      onSuccess: done,
+    }),
+    remove: useMutation({
+      mutationFn: () => api<User>(ENDPOINTS.avatar, { method: 'DELETE' }),
+      onSuccess: done,
+    }),
+  }
+}
+
+export const useJoinRequests =(treeId: number, enabled: boolean) =>
   useQuery({
     queryKey: ['join-requests', treeId],
     queryFn: () => api<JoinRequest[]>(ENDPOINTS.joinRequests(treeId)),

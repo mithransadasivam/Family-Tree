@@ -1,11 +1,13 @@
-﻿from rest_framework.views import APIView
+﻿from django.http import HttpResponse
+from rest_framework.parsers import MultiPartParser
+from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.conf import settings
-from .models import User, UserProfile
+from .models import User, UserAvatar, UserProfile
 from .serializers import UserSerializer, UserProfileSerializer
 from utils.google_auth import verify_google_token
 
@@ -159,3 +161,43 @@ class UserDetailView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
+
+MAX_AVATAR_BYTES = 200 * 1024  # the website sends ~320px JPEGs of a few tens of KB
+JPEG_MAGIC = bytes([0xFF, 0xD8, 0xFF])  # every JPEG file starts with these three bytes
+
+
+class AvatarView(APIView):
+    """The signed-in user's own uploaded profile picture (a JPEG)."""
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser]
+
+    def _user(self, request):
+        return User.objects.get(id=request.auth.payload.get('user_id'))
+
+    def get(self, request):
+        avatar = UserAvatar.objects.filter(user_id=self._user(request).id).first()
+        if not avatar:
+            return Response({'error': 'No uploaded picture'}, status=status.HTTP_404_NOT_FOUND)
+        response = HttpResponse(bytes(avatar.data), content_type='image/jpeg')
+        # Clients add ?v=<avatar_version>, which changes with every upload, so this can be cached.
+        response['Cache-Control'] = 'private, max-age=86400'
+        return response
+
+    def post(self, request):
+        upload = request.data.get('file')
+        if upload is None:
+            return Response({'error': 'file is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if upload.size > MAX_AVATAR_BYTES:
+            return Response({'error': 'Picture is too large (200 KB maximum)'}, status=status.HTTP_400_BAD_REQUEST)
+        data = upload.read()
+        # Only JPEG is accepted (the website always re-encodes to JPEG before uploading).
+        if data[:3] != JPEG_MAGIC:
+            return Response({'error': 'Picture must be a JPEG image'}, status=status.HTTP_400_BAD_REQUEST)
+        user = self._user(request)
+        UserAvatar.objects.update_or_create(user=user, defaults={'data': data})
+        return Response(UserSerializer(user).data, status=status.HTTP_200_OK)
+
+    def delete(self, request):
+        user = self._user(request)
+        UserAvatar.objects.filter(user=user).delete()
+        return Response(UserSerializer(user).data, status=status.HTTP_200_OK)

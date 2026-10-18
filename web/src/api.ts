@@ -3,6 +3,7 @@ export const ENDPOINTS = {
   refresh: '/api/auth/refresh/',
   logout: '/api/auth/logout/',
   me: '/api/users/me/',
+  avatar: '/api/users/me/avatar/',
   trees: '/api/family-trees/',
   tree: (id: number) => `/api/family-trees/${id}/`,
   leaveTree: (id: number) => `/api/family-trees/${id}/leave/`,
@@ -22,7 +23,7 @@ export const ENDPOINTS = {
 } as const
 
 // Empty string = same origin (e.g. behind a Vercel /api proxy).
-const BASE = import.meta.env.VITE_API_URL ?? ''
+export const BASE: string = import.meta.env.VITE_API_URL ?? ''
 
 export class ApiError extends Error {
   status: number
@@ -41,7 +42,8 @@ async function send(path: string, init: RequestInit): Promise<Response> {
     ...init,
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
+      // For FormData the browser must set the multipart Content-Type (with its boundary) itself.
+      ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
       ...(devToken ? { Authorization: `Bearer ${devToken}` } : {}),
       ...init.headers,
     },

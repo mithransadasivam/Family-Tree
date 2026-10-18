@@ -7,6 +7,10 @@ export interface User {
   phone?: string
   address?: string
   photo_url?: string
+  /** True when the user uploaded their own picture (it then wins over the Google photo). */
+  has_avatar?: boolean
+  /** Changes with every upload; used to bust the browser cache. */
+  avatar_version?: string | null
   created_at?: string
 }
 

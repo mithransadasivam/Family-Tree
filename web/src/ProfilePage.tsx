@@ -1,16 +1,20 @@
-import { useState, type CSSProperties } from 'react'
+import { useRef, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
+import { BASE, ENDPOINTS } from './api'
 import { photoSrc } from './Avatar'
+import { toAvatarJpeg } from './avatarImage'
 import { Arrow, Edit, Mail, Phone, Pin } from './Icons'
-import { useMe, useTrees, useUpdateMe, type ProfileInput } from './queries'
+import { useAvatar, useMe, useTrees, useUpdateMe, type ProfileInput } from './queries'
 import type { User } from './types'
 
 const initialsOf = (u: Pick<User, 'first_name' | 'last_name' | 'email'>) =>
   `${u.first_name[0] ?? ''}${u.last_name[0] ?? ''}`.toUpperCase() || (u.email[0] ?? '?').toUpperCase()
 
-/** Round account avatar: the Google photo if there is one, otherwise initials. */
+/** Round account avatar: the uploaded picture, else the Google photo, else initials. */
 export function AccountAvatar({ user, size = 28 }: { user: User; size?: number }) {
-  const src = photoSrc(user.photo_url ?? '')
+  const src = user.has_avatar
+    ? `${BASE}${ENDPOINTS.avatar}?v=${encodeURIComponent(user.avatar_version ?? '')}`
+    : photoSrc(user.photo_url ?? '')
   return src ? (
     <img className="avatar" src={src} width={size} height={size} alt="" referrerPolicy="no-referrer" style={{ width: size, height: size }} />
   ) : (
@@ -49,6 +53,9 @@ export default function ProfilePage() {
   const update = useUpdateMe()
   const [editing, setEditing] = useState(false)
   const [saved, setSaved] = useState(false)
+  const avatar = useAvatar()
+  const fileInput = useRef<HTMLInputElement>(null)
+  const [photoError, setPhotoError] = useState<string | null>(null)
   const [f, setF] = useState<ProfileInput>({ first_name: '', last_name: '', phone: '', address: '' })
 
   if (me.isLoading) return <p className="status">Loading…</p>
@@ -74,6 +81,20 @@ export default function ProfilePage() {
     setSaved(false)
     setEditing(true)
   }
+  const pickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow choosing the same file again
+    if (!file) return
+    setPhotoError(null)
+    try {
+      avatar.upload.mutate(await toAvatarJpeg(file), {
+        onError: (err) => setPhotoError(err.message),
+      })
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : 'Could not use that picture.')
+    }
+  }
+  const busyPhoto = avatar.upload.isPending || avatar.remove.isPending
   const set = (k: keyof ProfileInput) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setF((p) => ({ ...p, [k]: e.target.value }))
 
@@ -96,6 +117,29 @@ export default function ProfilePage() {
             <span className={`badge ${isOwner ? '' : 'pending'}`}>{isOwner ? 'Owner' : 'Member'}</span>
             {since && <span className="muted small">Member since {since}</span>}
           </div>
+          <div className="row wrap" style={{ marginTop: 12 }}>
+            <input ref={fileInput} type="file" accept="image/*" hidden onChange={(e) => void pickPhoto(e)} />
+            <button className="ghost" disabled={busyPhoto} onClick={() => fileInput.current?.click()}>
+              <Edit size={15} /> {avatar.upload.isPending ? 'Uploading…' : u.has_avatar ? 'Change photo' : 'Add your own photo'}
+            </button>
+            {u.has_avatar && (
+              <button
+                className="ghost"
+                disabled={busyPhoto}
+                onClick={() => {
+                  setPhotoError(null)
+                  avatar.remove.mutate(undefined, { onError: (err) => setPhotoError(err.message) })
+                }}
+              >
+                {u.photo_url ? 'Use my Google photo' : 'Remove photo'}
+              </button>
+            )}
+          </div>
+          {photoError && (
+            <p role="alert" className="error" style={{ marginTop: 8 }}>
+              {photoError}
+            </p>
+          )}
         </div>
       </section>
 
@@ -151,7 +195,7 @@ export default function ProfilePage() {
             </label>
             <p className="muted small">
               <Req />
-              Required. Your email and photo come from your Google account.
+              Required. Your email comes from your Google account.
             </p>
             {update.error && (
               <p role="alert" className="error">

@@ -51,3 +51,16 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f'Profile of {self.user.email}'
+
+
+class UserAvatar(models.Model):
+    """
+    A profile picture the user uploaded themselves (a small JPEG). Kept in its own table so that
+    loading a User never drags the image bytes along. Without one, the Google photo is used.
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='avatar')
+    data = models.BinaryField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'user_avatars'
