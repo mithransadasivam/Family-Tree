@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import Avatar, { lifespan } from './Avatar'
 import { classify, GROUP_ORDER, hasDescendants, inferGenders, type Group } from './graph'
-import { Close, Edit, Trash } from './Icons'
+import { Close, Edit, Mars, Trash, Venus } from './Icons'
 import {
   useAddRelationship,
   useDeleteMember,
@@ -183,7 +183,19 @@ export default function DetailPanel({
         <div className="avatar-halo">
           <Avatar member={member} size={84} />
         </div>
-        <h2>{fullName(member)}</h2>
+        <h2>
+          {fullName(member)}
+          {genders.get(member.id) && (
+            <span
+              className={`gender-icon ${genders.get(member.id)}`}
+              role="img"
+              aria-label={genders.get(member.id) === 'male' ? 'Male' : 'Female'}
+              title={genders.get(member.id) === 'male' ? 'Male' : 'Female'}
+            >
+              {genders.get(member.id) === 'male' ? <Mars size={22} /> : <Venus size={22} />}
+            </span>
+          )}
+        </h2>
         {lifespan(member) && <span className="eyebrow">{lifespan(member)}</span>}
         <div className="facts">
           {facts.length === 0 && <span>No dates recorded yet</span>}

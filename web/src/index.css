@@ -1665,3 +1665,22 @@ button.gender-toggle.female {
 button.gender-toggle > span {
   color: inherit;
 }
+
+/* gender icon next to a person's name */
+.gender-icon {
+  display: inline-flex;
+  vertical-align: -3px;
+  margin-left: 8px;
+}
+.gender-icon.male {
+  color: hsl(205 75% 62%);
+}
+.gender-icon.female {
+  color: hsl(335 75% 66%);
+}
+:root[data-theme='light'] .gender-icon.male {
+  color: hsl(205 80% 36%);
+}
+:root[data-theme='light'] .gender-icon.female {
+  color: hsl(335 70% 40%);
+}
