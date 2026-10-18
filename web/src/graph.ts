@@ -62,8 +62,55 @@ def(['Uncle', 'Aunt'], 'Extended family', 'Extended family', 'Nephew / niece')
 def(['Cousin'], 'Extended family', 'Extended family', 'Cousin')
 def(['Guardian'], 'Extended family', 'Extended family', 'Ward')
 
+// Relationship types that tell us the gender of member_1 (the person being described).
+const MALE_TYPES = new Set([
+  'Father', 'Stepfather', 'Step Father', 'Grandfather', 'Son', 'Stepson', 'Step Son', 'Adopted Son',
+  'Grandson', 'Brother', 'Step Brother', 'Adopted Brother', 'Husband', 'Fiance', 'Uncle',
+  'Father-in-Law', 'Son-in-Law', 'Brother-in-Law',
+])
+const FEMALE_TYPES = new Set([
+  'Mother', 'Stepmother', 'Step Mother', 'Grandmother', 'Daughter', 'Stepdaughter', 'Step Daughter',
+  'Adopted Daughter', 'Granddaughter', 'Sister', 'Step Sister', 'Adopted Sister', 'Wife', 'Fiancee',
+  'Aunt', 'Mother-in-Law', 'Daughter-in-Law', 'Sister-in-Law',
+])
+
+export type Gender = 'male' | 'female'
+
+/**
+ * Work out who is male or female from how they were described ("X is the Father of Y" says X
+ * is male). Anyone only ever described neutrally ("Cousin", "Spouse") stays unknown.
+ */
+export function inferGenders(rels: Relationship[]): Map<number, Gender> {
+  const out = new Map<number, Gender>()
+  for (const r of rels) {
+    if (MALE_TYPES.has(r.relationship_type_name)) out.set(r.member_1, 'male')
+    else if (FEMALE_TYPES.has(r.relationship_type_name)) out.set(r.member_1, 'female')
+  }
+  return out
+}
+
+// When we look at a link from member_1's side we describe member_2 with a neutral word;
+// if member_2's gender is known we can use the specific one.
+const GENDERED_INVERSE: Record<string, [string, string]> = {
+  Child: ['Son', 'Daughter'],
+  Parent: ['Father', 'Mother'],
+  Sibling: ['Brother', 'Sister'],
+  'Step-sibling': ['Step Brother', 'Step Sister'],
+  'Adopted sibling': ['Adopted Brother', 'Adopted Sister'],
+  Grandchild: ['Grandson', 'Granddaughter'],
+  Grandparent: ['Grandfather', 'Grandmother'],
+  Partner: ['Husband', 'Wife'],
+  'Nephew / niece': ['Nephew', 'Niece'],
+  Stepchild: ['Step Son', 'Step Daughter'],
+  'Step-parent': ['Step Father', 'Step Mother'],
+  'Adoptive parent': ['Adoptive Father', 'Adoptive Mother'],
+  'Child-in-law': ['Son-in-Law', 'Daughter-in-Law'],
+  'Parent-in-law': ['Father-in-Law', 'Mother-in-Law'],
+  'Sibling-in-law': ['Brother-in-Law', 'Sister-in-Law'],
+}
+
 /** What the other person in `rel` is to `selfId`, in the groups the detail panel shows. */
-export function classify(rel: Relationship, selfId: number) {
+export function classify(rel: Relationship, selfId: number, genders?: Map<number, Gender>) {
   const name = rel.relationship_type_name
   const selfIsFirst = rel.member_1 === selfId
   const other = selfIsFirst ? rel.member_2 : rel.member_1
@@ -71,9 +118,11 @@ export function classify(rel: Relationship, selfId: number) {
   if (!d) {
     return { group: 'Extended family' as Group, other, label: selfIsFirst ? `${name} of` : name }
   }
-  return selfIsFirst
-    ? { group: d.inverse, other, label: d.inverseLabel }
-    : { group: d.group, other, label: name }
+  if (!selfIsFirst) return { group: d.group, other, label: name }
+  const pair = GENDERED_INVERSE[d.inverseLabel]
+  const g = genders?.get(other)
+  const label = pair && g ? pair[g === 'male' ? 0 : 1] : d.inverseLabel
+  return { group: d.inverse, other, label }
 }
 
 export interface Graph {

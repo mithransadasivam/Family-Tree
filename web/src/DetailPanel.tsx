@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Avatar, { lifespan } from './Avatar'
-import { classify, GROUP_ORDER, hasDescendants, type Group } from './graph'
+import { classify, GROUP_ORDER, hasDescendants, inferGenders, type Group } from './graph'
 import { Close, Edit, Trash } from './Icons'
 import {
   useAddRelationship,
@@ -145,10 +145,11 @@ export default function DetailPanel({
   )
   const candidates = members.filter((m) => m.id !== member.id && !relatedIds.has(m.id))
 
+  const genders = inferGenders(relationships)
   const grouped = new Map<Group, { rel: Relationship; other: number; label: string }[]>()
   for (const rel of relationships) {
     if (rel.member_1 !== member.id && rel.member_2 !== member.id) continue
-    const { group, other, label } = classify(rel, member.id)
+    const { group, other, label } = classify(rel, member.id, genders)
     grouped.set(group, [...(grouped.get(group) ?? []), { rel, other, label }])
   }
 
