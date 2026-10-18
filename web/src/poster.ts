@@ -1,11 +1,11 @@
 import frauncesUrl from '@fontsource-variable/fraunces/files/fraunces-latin-wght-normal.woff2?url'
 import frauncesItalicUrl from '@fontsource-variable/fraunces/files/fraunces-latin-wght-italic.woff2?url'
 import interUrl from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url'
-import { hueFor, initials, lifespan } from './Avatar'
+import { hueFor, initials } from './Avatar'
 import type { Unit } from './graph'
-import { AV, clip, G, H, layoutForest, linkPath, personX, W } from './layout'
+import { AV, cardLines, clip, G, H, layoutForest, linkPath, personX, W } from './layout'
 import { ringData } from './Rings'
-import { fullName, type Member } from './types'
+import type { Member } from './types'
 
 export type PosterTheme = 'light' | 'dark'
 
@@ -184,15 +184,21 @@ export function buildPoster(forest: Unit[], opts: PosterOptions, fonts: string, 
       ? (defs.push(`<clipPath id="f${m.id}"><circle cx="${ax}" cy="${y}" r="${AV}"/></clipPath>`),
         `<image href="${photo}" x="${ax - AV}" y="${y - AV}" width="${AV * 2}" height="${AV * 2}" clip-path="url(#f${m.id})" preserveAspectRatio="xMidYMid slice"/>`)
       : `<circle cx="${ax}" cy="${y}" r="${AV}" fill="${hsl(m.id, 0.2)}"/><text x="${ax}" y="${y}" text-anchor="middle" dominant-baseline="central" font-family="${sans}" font-size="${(AV * 0.58).toFixed(1)}" font-weight="600" fill="${hsl(m.id)}">${esc(initials(m))}</text>`
-    const life = opts.showDates ? lifespan(m) : ''
+    const text = cardLines(m, opts.showDates)
+      .map((l) => {
+        const y2 = y + l.dy
+        const x2 = x - W / 2 + 80
+        if (l.kind === 'life')
+          return `<text x="${x2}" y="${y2}" dominant-baseline="central" font-family="${sans}" font-size="${l.size}" letter-spacing="0.4" fill="${c.ink3}">${esc(l.text)}</text>`
+        const first = l.kind === 'first'
+        return `<text x="${x2}" y="${y2}" dominant-baseline="central" font-family="${serif}" font-size="${l.size}" font-weight="${first ? 500 : 400}" fill="${first ? c.ink : c.ink2}">${esc(l.text)}</text>`
+      })
+      .join('')
     return (
       `<rect x="${x - W / 2}" y="${y - H / 2}" width="${W}" height="${H}" rx="22" fill="${c.card}" stroke="${c.cardLine}" stroke-width="1.4"/>` +
       `<circle cx="${ax}" cy="${y}" r="${AV + 4}" fill="none" stroke="${c.cardLine}" stroke-width="1.6"/>` +
       face +
-      `<text x="${x - W / 2 + 80}" y="${y - (life ? 5 : 0)}" ${life ? '' : 'dominant-baseline="central" '}font-family="${serif}" font-size="15" font-weight="500" fill="${c.ink}">${esc(clip(fullName(m), 17))}</text>` +
-      (life
-        ? `<text x="${x - W / 2 + 80}" y="${y + 16}" font-family="${sans}" font-size="11" letter-spacing="0.4" fill="${c.ink3}">${esc(life)}</text>`
-        : '')
+      text
     )
   }
 

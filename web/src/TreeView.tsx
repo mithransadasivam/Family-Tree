@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { hueFor, initials, lifespan, photoSrc } from './Avatar'
+import { hueFor, initials, photoSrc } from './Avatar'
 import type { Unit } from './graph'
 import { Fit } from './Icons'
-import { AV, clip, G, H, layoutForest, linkPath, PAD, personX, W } from './layout'
+import { AV, cardLines, G, H, layoutForest, linkPath, PAD, personX, W } from './layout'
 import { fullName, type Member } from './types'
 
 function Face({ m, cx, cy, r, id }: { m: Member; cx: number; cy: number; r: number; id: string }) {
@@ -72,12 +72,18 @@ function Card({
       <rect className="node-card" x={x - W / 2} y={y - H / 2} width={W} height={H} rx={22} />
       <circle className="node-ring" cx={ax} cy={y} r={AV + 4} />
       <Face m={m} cx={ax} cy={y} r={AV} id={`clip-${m.id}`} />
-      <text x={x - W / 2 + 80} y={y - 5} className="node-name">
-        {clip(fullName(m), 17)}
-      </text>
-      <text x={x - W / 2 + 80} y={y + 16} className="node-sub">
-        {lifespan(m) || ' '}
-      </text>
+      {cardLines(m).map((l) => (
+        <text
+          key={l.kind}
+          x={x - W / 2 + 80}
+          y={y + l.dy}
+          dominantBaseline="central"
+          className={`node-${l.kind}`}
+          style={{ fontSize: l.size }}
+        >
+          {l.text}
+        </text>
+      ))}
     </g>
   )
 }

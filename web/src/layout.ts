@@ -1,4 +1,6 @@
+import { lifespan } from './Avatar'
 import type { Unit } from './graph'
+import type { Member } from './types'
 
 // Card and spacing metrics (SVG units).
 export const W = 216 // card width
@@ -130,4 +132,38 @@ export function linkPath(p: Placed, x2: number, y2: number) {
   const yb = couple ? p.y + H / 2 + 6 : sy // clear of the cards
   const ye = Math.min(y2, p.y + H / 2 + VG) // bend inside the gap below the parent row
   return `M${x1} ${sy} L${x1} ${yb} C${x1} ${yb + (ye - yb) / 2}, ${x2} ${ye - (ye - yb) / 2}, ${x2} ${ye} L${x2} ${y2}`
+}
+
+// ---------------------------------------------------------------------------------------
+// Card text: first name on top, last name below, then years. Long names are made a little
+// smaller to fit; they are only cut off if even the smallest size would overflow.
+// ---------------------------------------------------------------------------------------
+
+const TEXT_W = W - 80 - 14 // card text area, in SVG units
+const CHAR = 0.55 // average glyph width as a fraction of the font size
+
+export function fitText(text: string, base: number, min: number) {
+  const natural = text.length * base * CHAR
+  // Shrink with a little slack (0.97) so a name that just fits is not clipped by rounding.
+  const size = natural <= TEXT_W ? base : Math.max(min, (base * TEXT_W * 0.97) / natural)
+  const maxChars = Math.floor(TEXT_W / (size * CHAR))
+  return { text: clip(text, maxChars), size: Math.round(size * 10) / 10 }
+}
+
+export interface CardLine {
+  kind: 'first' | 'last' | 'life'
+  text: string
+  size: number
+  /** Vertical offset from the card's centre line. */
+  dy: number
+}
+
+export function cardLines(m: Member, showDates = true): CardLine[] {
+  const raw: Omit<CardLine, 'dy'>[] = [{ kind: 'first', ...fitText(m.first_name.trim() || '?', 16, 10.5) }]
+  const last = m.last_name.trim()
+  if (last) raw.push({ kind: 'last', ...fitText(last, 13.5, 10) })
+  const life = showDates ? lifespan(m) : ''
+  if (life) raw.push({ kind: 'life', text: life, size: 11 })
+  const gap = raw.length === 3 ? 19 : 22
+  return raw.map((l, i) => ({ ...l, dy: (i - (raw.length - 1) / 2) * gap }))
 }

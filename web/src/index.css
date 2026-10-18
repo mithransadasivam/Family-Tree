@@ -1032,12 +1032,17 @@ input[type='checkbox']:checked::after {
   text-anchor: middle;
   dominant-baseline: central;
 }
-.node-name {
+.node-first {
   fill: var(--ink);
-  font: 500 15px var(--serif);
+  font: 500 16px var(--serif);
   font-variation-settings: 'opsz' 24, 'SOFT' 60;
 }
-.node-sub {
+.node-last {
+  fill: var(--ink-2);
+  font: 400 13.5px var(--serif);
+  font-variation-settings: 'opsz' 24, 'SOFT' 60;
+}
+.node-life {
   fill: var(--ink-3);
   font: 500 11px var(--sans);
   letter-spacing: 0.03em;
@@ -1487,6 +1492,7 @@ input[type='checkbox']:checked::after {
   color: var(--on-gold);
 }
 .poster-preview {
+  flex-shrink: 0; /* scroll the dialog instead of squeezing the preview */
   border-radius: var(--r-md);
   border: 1px solid var(--line);
   padding: 10px;
