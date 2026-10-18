@@ -39,7 +39,7 @@ function AddForm({ treeId, members, onClose, onSaved }: Omit<Props, 'member'>) {
 
   // The first person in an empty family has nobody to connect to; everyone after must connect.
   const isFirst = members.length === 0
-  const valid = first.trim() !== '' && (isFirst || (otherId !== '' && typeId !== undefined))
+  const valid = first.trim() !== '' && last.trim() !== '' && (isFirst || (otherId !== '' && typeId !== undefined))
   const others = [...members].sort((a, b) => fullName(a).localeCompare(fullName(b)))
 
   return (
@@ -74,8 +74,11 @@ function AddForm({ treeId, members, onClose, onSaved }: Omit<Props, 'member'>) {
             <input required autoFocus value={first} onChange={(e) => setFirst(e.target.value)} />
           </label>
           <label className="field grow">
-            Last name
-            <input value={last} onChange={(e) => setLast(e.target.value)} />
+            <span>
+              Last name
+              <Req />
+            </span>
+            <input required value={last} onChange={(e) => setLast(e.target.value)} />
           </label>
         </div>
 
@@ -170,8 +173,11 @@ function EditForm({ treeId, member, onClose, onSaved }: Omit<Props, 'members' | 
             <input required autoFocus value={f.first_name} onChange={set('first_name')} />
           </label>
           <label className="field grow">
-            Last name
-            <input value={f.last_name} onChange={set('last_name')} />
+            <span>
+              Last name
+              <Req />
+            </span>
+            <input required value={f.last_name} onChange={set('last_name')} />
           </label>
         </div>
         <div className="row">
@@ -201,7 +207,7 @@ function EditForm({ treeId, member, onClose, onSaved }: Omit<Props, 'members' | 
           <button type="button" className="ghost" onClick={onClose}>
             Cancel
           </button>
-          <button disabled={save.isPending || f.first_name.trim() === ''}>{save.isPending ? 'Saving…' : 'Save changes'}</button>
+          <button disabled={save.isPending || f.first_name.trim() === '' || f.last_name.trim() === ''}>{save.isPending ? 'Saving…' : 'Save changes'}</button>
         </div>
       </form>
     </div>
