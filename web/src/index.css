@@ -1685,15 +1685,22 @@ button.gender-toggle > span {
   color: hsl(335 70% 40%);
 }
 
-/* name + gender icon: the icon is glued to the last word, so it stays right after the name */
+/* name + gender icon: the icon hangs off the end of the last word WITHOUT taking space in the line,
+   so every line of the name is centred on the same axis (first and last name line up). */
 .person-name {
   text-wrap: balance;
   overflow-wrap: anywhere;
+  /* Room on BOTH sides for the hanging icon (22px + 8px gap), so lines stay centred and the icon is never clipped. */
+  padding-inline: 32px;
 }
 .person-name .nowrap {
   white-space: nowrap;
+  position: relative;
 }
 .person-name .gender-icon {
-  margin-left: 8px;
-  vertical-align: -3px;
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  margin: 0 0 0 8px;
+  transform: translateY(-50%);
 }
