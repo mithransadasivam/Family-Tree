@@ -1,7 +1,8 @@
 import { useState } from 'react'
+import { FEMALE_TYPES, MALE_TYPES } from './graph'
 import { useCreatePerson, useRelationshipTypes, useSaveMember } from './queries'
 import { useTermPicker } from './TermPicker'
-import { fullName, type Member } from './types'
+import { fullName, type Gender, type Member } from './types'
 
 interface Props {
   treeId: number
@@ -20,6 +21,37 @@ const Req = () => (
   </span>
 )
 
+const GENDERS: { id: Exclude<Gender, ''>; label: string }[] = [
+  { id: 'male', label: 'Male' },
+  { id: 'female', label: 'Female' },
+  { id: 'other', label: 'Other' },
+]
+
+/** Male / Female / Other choice. Shown as a segmented control so it is one click. */
+function GenderField({ value, onChange, required }: { value: Gender; onChange: (g: Gender) => void; required?: boolean }) {
+  return (
+    <div className="field" role="group" aria-label="Gender">
+      <span>
+        Gender
+        {required && <Req />}
+      </span>
+      <div className="seg">
+        {GENDERS.map((g) => (
+          <button
+            key={g.id}
+            type="button"
+            className={value === g.id ? 'on' : ''}
+            aria-pressed={value === g.id}
+            onClick={() => onChange(g.id)}
+          >
+            {g.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function MemberForm({ treeId, member, members, onClose, onSaved }: Props) {
   return member ? (
     <EditForm treeId={treeId} member={member} onClose={onClose} onSaved={onSaved} />
@@ -28,18 +60,24 @@ export default function MemberForm({ treeId, member, members, onClose, onSaved }
   )
 }
 
+/** A man cannot be recorded as a "Mother", a woman as a "Son", and so on. */
+const allowFor = (g: Gender) => (type: string) =>
+  g === 'male' ? !FEMALE_TYPES.has(type) : g === 'female' ? !MALE_TYPES.has(type) : true
+
 /** Adding: only what is needed, plus how the person connects to the family. */
 function AddForm({ treeId, members, onClose, onSaved }: Omit<Props, 'member'>) {
   const create = useCreatePerson(treeId)
   const types = useRelationshipTypes()
-  const { typeId, picker } = useTermPicker(types.data)
   const [first, setFirst] = useState('')
   const [last, setLast] = useState('')
+  const [gender, setGender] = useState<Gender>('')
   const [otherId, setOtherId] = useState('')
+  const { typeId, picker } = useTermPicker(types.data, undefined, allowFor(gender))
 
   // The first person in an empty family has nobody to connect to; everyone after must connect.
   const isFirst = members.length === 0
-  const valid = first.trim() !== '' && last.trim() !== '' && (isFirst || (otherId !== '' && typeId !== undefined))
+  const valid =
+    first.trim() !== '' && last.trim() !== '' && gender !== '' && (isFirst || (otherId !== '' && typeId !== undefined))
   const others = [...members].sort((a, b) => fullName(a).localeCompare(fullName(b)))
 
   return (
@@ -54,6 +92,7 @@ function AddForm({ treeId, members, onClose, onSaved }: Omit<Props, 'member'>) {
             {
               first_name: first.trim(),
               last_name: last.trim(),
+              gender,
               relationship: isFirst ? undefined : { otherId: Number(otherId), typeId: typeId! },
             },
             { onSuccess: onSaved },
@@ -81,6 +120,8 @@ function AddForm({ treeId, members, onClose, onSaved }: Omit<Props, 'member'>) {
             <input required value={last} onChange={(e) => setLast(e.target.value)} />
           </label>
         </div>
+
+        <GenderField value={gender} onChange={setGender} required />
 
         {isFirst ? (
           <p className="muted">This is the first person in the family, so there is no one to connect them to yet.</p>
@@ -140,6 +181,7 @@ function EditForm({ treeId, member, onClose, onSaved }: Omit<Props, 'members' | 
   const [f, setF] = useState({
     first_name: member.first_name,
     last_name: member.last_name,
+    gender: (member.gender ?? '') as Gender,
     birth_date: member.birth_date ?? '',
     birth_place: member.birth_place,
     photo_url: member.photo_url,
@@ -180,6 +222,7 @@ function EditForm({ treeId, member, onClose, onSaved }: Omit<Props, 'members' | 
             <input required value={f.last_name} onChange={set('last_name')} />
           </label>
         </div>
+        <GenderField value={f.gender} onChange={(g) => setF((p) => ({ ...p, gender: g }))} />
         <div className="row">
           <label className="field grow">
             Born
@@ -207,7 +250,9 @@ function EditForm({ treeId, member, onClose, onSaved }: Omit<Props, 'members' | 
           <button type="button" className="ghost" onClick={onClose}>
             Cancel
           </button>
-          <button disabled={save.isPending || f.first_name.trim() === '' || f.last_name.trim() === ''}>{save.isPending ? 'Saving…' : 'Save changes'}</button>
+          <button disabled={save.isPending || f.first_name.trim() === '' || f.last_name.trim() === ''}>
+            {save.isPending ? 'Saving…' : 'Save changes'}
+          </button>
         </div>
       </form>
     </div>

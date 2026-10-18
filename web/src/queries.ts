@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ENDPOINTS, json } from './api'
 import type {
+  Gender,
   EditHistory,
   JoinRequest,
   JoinResult,
@@ -128,6 +129,7 @@ export function useCreateTree() {
 export interface MemberInput {
   first_name: string
   last_name: string
+  gender: Gender
   birth_date: string
   birth_place: string
   photo_url: string
@@ -148,6 +150,7 @@ export function useSaveMember(treeId: number) {
 export interface NewPerson {
   first_name: string
   last_name: string
+  gender: Gender
   /** Who they are connected to and how: "[new person] is the <type> of <otherId>". Omit only for the first person. */
   relationship?: { otherId: number; typeId: number }
 }
@@ -162,7 +165,7 @@ export function useCreatePerson(treeId: number) {
     mutationFn: async (p: NewPerson) => {
       const person = await api<Member>(
         ENDPOINTS.membersCreate,
-        json('POST', { tree: treeId, first_name: p.first_name, last_name: p.last_name }),
+        json('POST', { tree: treeId, first_name: p.first_name, last_name: p.last_name, gender: p.gender }),
       )
       if (p.relationship) {
         try {
@@ -282,6 +285,7 @@ export function useRestore(treeId: number) {
         ...(m.user !== null && m.user !== undefined ? { user: m.user } : {}),
         first_name: m.first_name,
         last_name: m.last_name,
+        gender: m.gender ?? '',
         phone: m.phone,
         email: m.email,
         address: m.address,

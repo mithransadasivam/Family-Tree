@@ -4,6 +4,8 @@ from family_trees.models import FamilyTree
 
 
 class FamilyMember(models.Model):
+    GENDER_CHOICES = [('male', 'Male'), ('female', 'Female'), ('other', 'Other')]
+
     tree = models.ForeignKey(
         FamilyTree, on_delete=models.CASCADE, related_name='family_members'
     )
@@ -13,6 +15,8 @@ class FamilyMember(models.Model):
     )
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100, blank=True)
+    # Optional (blank = not recorded). Used so relationships read "Father/Son/..." not "Parent/Child".
+    gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True, default='')
     phone = models.CharField(max_length=20, blank=True)
     email = models.EmailField(blank=True)
     address = models.TextField(blank=True)

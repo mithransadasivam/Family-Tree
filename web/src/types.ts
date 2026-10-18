@@ -42,11 +42,15 @@ export interface EditHistory {
   edited_at: string
 }
 
+export type Gender = '' | 'male' | 'female' | 'other'
+
 export interface Member {
   id: number
   tree: number
   first_name: string
   last_name: string
+  /** '' = not recorded. */
+  gender: Gender
   phone: string
   email: string
   address: string

@@ -63,28 +63,33 @@ def(['Cousin'], 'Extended family', 'Extended family', 'Cousin')
 def(['Guardian'], 'Extended family', 'Extended family', 'Ward')
 
 // Relationship types that tell us the gender of member_1 (the person being described).
-const MALE_TYPES = new Set([
+export const MALE_TYPES = new Set([
   'Father', 'Stepfather', 'Step Father', 'Grandfather', 'Son', 'Stepson', 'Step Son', 'Adopted Son',
   'Grandson', 'Brother', 'Step Brother', 'Adopted Brother', 'Husband', 'Fiance', 'Uncle',
   'Father-in-Law', 'Son-in-Law', 'Brother-in-Law',
 ])
-const FEMALE_TYPES = new Set([
+export const FEMALE_TYPES = new Set([
   'Mother', 'Stepmother', 'Step Mother', 'Grandmother', 'Daughter', 'Stepdaughter', 'Step Daughter',
   'Adopted Daughter', 'Granddaughter', 'Sister', 'Step Sister', 'Adopted Sister', 'Wife', 'Fiancee',
   'Aunt', 'Mother-in-Law', 'Daughter-in-Law', 'Sister-in-Law',
 ])
 
-export type Gender = 'male' | 'female'
+export type KnownGender = 'male' | 'female'
 
 /**
- * Work out who is male or female from how they were described ("X is the Father of Y" says X
- * is male). Anyone only ever described neutrally ("Cousin", "Spouse") stays unknown.
+ * Who is male or female. A person's own recorded gender wins; otherwise it is inferred from how
+ * they were described in a link ("X is the Father of Y" says X is male). Anyone with neither
+ * stays unknown, and is described with neutral words ("Child", "Sibling").
  */
-export function inferGenders(rels: Relationship[]): Map<number, Gender> {
-  const out = new Map<number, Gender>()
+export function inferGenders(rels: Relationship[], members: Member[] = []): Map<number, KnownGender> {
+  const out = new Map<number, KnownGender>()
   for (const r of rels) {
     if (MALE_TYPES.has(r.relationship_type_name)) out.set(r.member_1, 'male')
     else if (FEMALE_TYPES.has(r.relationship_type_name)) out.set(r.member_1, 'female')
+  }
+  for (const m of members) {
+    if (m.gender === 'male' || m.gender === 'female') out.set(m.id, m.gender)
+    else if (m.gender === 'other') out.delete(m.id)
   }
   return out
 }
@@ -110,7 +115,7 @@ const GENDERED_INVERSE: Record<string, [string, string]> = {
 }
 
 /** What the other person in `rel` is to `selfId`, in the groups the detail panel shows. */
-export function classify(rel: Relationship, selfId: number, genders?: Map<number, Gender>) {
+export function classify(rel: Relationship, selfId: number, genders?: Map<number, KnownGender>) {
   const name = rel.relationship_type_name
   const selfIsFirst = rel.member_1 === selfId
   const other = selfIsFirst ? rel.member_2 : rel.member_1

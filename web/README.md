@@ -46,6 +46,7 @@ Then commit `webapp/` and deploy the backend to Railway. Do not deploy from a pl
 | Relationship rules: one link per pair (no Husband+Brother), no parent/child loops, same family only; enforced by the server (`relationships/rules.py`), and already-connected people are hidden in the pickers | built, tested |
 | Cards show first name on top, last name below, then years; long names shrink to fit before they are ever cut off (`cardLines` in `layout.ts`, used by the tree and the poster) | built, tested |
 | Relationship labels in the person panel are gendered from either side (Father/Mother, Son/Daughter, Brother/Sister...), inferred from how people were described (`inferGenders` in `graph.ts`) | built, tested |
+| Gender (Male/Female/Other; required when adding): relationship words use it (Son vs Child), and the type picker hides contradictory choices (`family_members` migration 0002, `MemberForm.tsx`, `inferGenders`) | built, tested |
 | Undo (10 s) after deleting a person or removing a relationship; the person is re-created with all details and relationships re-linked (`UndoBar.tsx`, `useRestore` in `queries.ts`) | built, tested against Django |
 | Poster: print-ready tree as PNG, SVG, PDF (print dialog) or share sheet, light/dark (`PosterDialog.tsx`, `poster.ts`) | built; PNG, preview and print HTML tested, a real print dialog not |
 | Manage page (`ManagePage.tsx`): invite codes, require-approval setting, approve/reject join requests, edit history, delete (owner) / leave (member) | built, tested against Django |

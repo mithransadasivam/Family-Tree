@@ -145,7 +145,7 @@ export default function DetailPanel({
   )
   const candidates = members.filter((m) => m.id !== member.id && !relatedIds.has(m.id))
 
-  const genders = inferGenders(relationships)
+  const genders = inferGenders(relationships, members)
   const grouped = new Map<Group, { rel: Relationship; other: number; label: string }[]>()
   for (const rel of relationships) {
     if (rel.member_1 !== member.id && rel.member_2 !== member.id) continue
@@ -224,6 +224,13 @@ export default function DetailPanel({
       {del.error && (
         <p role="alert" className="error" style={{ marginTop: 10, textAlign: 'center' }}>
           {del.error.message}
+        </p>
+      )}
+
+      {grouped.size > 0 && !genders.has(member.id) && member.gender !== 'other' && (
+        <p className="muted small" style={{ textAlign: 'center', marginTop: 10 }}>
+          Gender not set. Choose it in Edit so relationships with {member.first_name} read correctly (Son/Daughter,
+          Father/Mother...).
         </p>
       )}
 

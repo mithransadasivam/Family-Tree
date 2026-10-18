@@ -6,7 +6,7 @@ class FamilyMemberSerializer(serializers.ModelSerializer):
     class Meta:
         model = FamilyMember
         fields = [
-            'id', 'tree', 'user', 'first_name', 'last_name',
+            'id', 'tree', 'user', 'first_name', 'last_name', 'gender',
             'phone', 'email', 'address', 'photo_url',
             'birth_date', 'birth_place', 'death_date', 'death_place',
             'created_at', 'updated_at'
