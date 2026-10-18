@@ -17,4 +17,6 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'email', 'first_name', 'last_name',
             'phone', 'address', 'photo_url', 'created_at', 'profile'
         ]
-        read_only_fields = ['id', 'created_at']
+        # email is the account's identity and photo_url is refreshed from Google at every sign-in,
+        # so neither can be changed through the profile endpoint.
+        read_only_fields = ['id', 'email', 'photo_url', 'created_at']

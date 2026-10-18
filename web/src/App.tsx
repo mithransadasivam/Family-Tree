@@ -4,6 +4,7 @@ import { ApiError } from './api'
 import Backdrop from './Backdrop'
 import LoginPage from './LoginPage'
 import ManagePage from './ManagePage'
+import ProfilePage from './ProfilePage'
 import Protected from './Protected'
 import TreePage from './TreePage'
 import TreesPage from './TreesPage'
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route element={<Protected />}>
             <Route path="/" element={<TreesPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
             <Route path="/trees/:treeId" element={<TreePage />} />
             <Route path="/trees/:treeId/manage" element={<ManagePage />} />
           </Route>

@@ -49,6 +49,7 @@ Then commit `webapp/` and deploy the backend to Railway. Do not deploy from a pl
 | Gender (one-click ♂/♀ toggle; starts on Male when adding, "Not set" when editing someone without one): relationship words use it (Son vs Child), and the type picker hides contradictory choices (`family_members` migration 0002, `MemberForm.tsx`, `inferGenders`) | built, tested |
 | Person panel shows a coloured ♂/♀ icon beside the name (recorded or inferred gender; none if unknown) | built, tested |
 | Gender badge (small coloured ♂/♀) on each person's card and on the poster, so gender is visible without clicking; nothing shown if unknown (`TreeView.tsx`, `poster.ts`) | built, tested |
+| Profile page (`/profile`, from the top-bar chip): name, Owner/Member badge, member since, email (read-only, from Google), editable name/phone/address, your families with your role (`ProfilePage.tsx`; server makes email and photo read-only on `PATCH /api/users/me/`) | built, tested |
 | Undo (10 s) after deleting a person or removing a relationship; the person is re-created with all details and relationships re-linked (`UndoBar.tsx`, `useRestore` in `queries.ts`) | built, tested against Django |
 | Poster: print-ready tree as PNG, SVG, PDF (print dialog) or share sheet, light/dark (`PosterDialog.tsx`, `poster.ts`) | built; PNG, preview and print HTML tested, a real print dialog not |
 | Manage page (`ManagePage.tsx`): invite codes, require-approval setting, approve/reject join requests, edit history, delete (owner) / leave (member) | built, tested against Django |

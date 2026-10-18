@@ -4,6 +4,10 @@ export interface User {
   email: string
   first_name: string
   last_name: string
+  phone?: string
+  address?: string
+  photo_url?: string
+  created_at?: string
 }
 
 export interface Tree {

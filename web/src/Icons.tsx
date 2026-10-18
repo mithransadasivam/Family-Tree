@@ -135,4 +135,27 @@ export const Venus = ({ size, ...p }: P) => (
     <path d="M12 14.5V21M8.5 18h7" />
   </svg>
 )
+export const Mail = ({ size, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <rect x="3" y="5" width="18" height="14" rx="2.5" />
+    <path d="m4 7 8 6 8-6" />
+  </svg>
+)
+export const Phone = ({ size, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" />
+  </svg>
+)
+export const Pin = ({ size, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" />
+    <circle cx="12" cy="10" r="2.3" />
+  </svg>
+)
+export const User = ({ size, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4.5 20a7.5 7.5 0 0 1 15 0" />
+  </svg>
+)
 

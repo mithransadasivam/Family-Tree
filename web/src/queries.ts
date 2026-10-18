@@ -15,6 +15,25 @@ import type {
 export const useMe = () =>
   useQuery({ queryKey: ['me'], queryFn: () => api<User>(ENDPOINTS.me), staleTime: Infinity })
 
+export interface ProfileInput {
+  first_name: string
+  last_name: string
+  phone: string
+  address: string
+}
+
+/** Update the signed-in user's own details (email and photo come from Google and cannot be edited). */
+export function useUpdateMe() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: ProfileInput) => api<User>(ENDPOINTS.me, json('PATCH', input)),
+    onSuccess: (me) => {
+      qc.setQueryData(['me'], me)
+      return qc.invalidateQueries({ queryKey: ['me'] })
+    },
+  })
+}
+
 export const useJoinRequests = (treeId: number, enabled: boolean) =>
   useQuery({
     queryKey: ['join-requests', treeId],

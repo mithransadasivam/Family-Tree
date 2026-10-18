@@ -5,7 +5,8 @@ import { isAuthError, logout } from './auth'
 import { CreateFamilyDialog, JoinFamilyDialog } from './FamilyDialogs'
 import { Moon, Plus, Sun, Users } from './Icons'
 import Logo, { LogoMark } from './Logo'
-import { useTrees } from './queries'
+import { AccountAvatar } from './ProfilePage'
+import { useMe, useTrees } from './queries'
 import { useTheme } from './theme'
 
 /** What pages under this layout can ask the top bar to do. */
@@ -17,6 +18,7 @@ export interface ShellContext {
 /** Session gate: the trees request doubles as the "am I signed in?" probe. */
 export default function Protected() {
   const { isLoading, error } = useTrees()
+  const me = useMe()
   const qc = useQueryClient()
   const nav = useNavigate()
   // Create / Join belong to the families list. Inside a family they would only be in the way.
@@ -51,6 +53,12 @@ export default function Protected() {
                 <Plus size={16} /> <span className="label">Create a family</span>
               </button>
             </>
+          )}
+          {me.data && (
+            <Link to="/profile" className="profile-chip" title="My profile" aria-label="My profile">
+              <AccountAvatar user={me.data} size={28} />
+              <span className="label">{me.data.first_name || 'Profile'}</span>
+            </Link>
           )}
           <button
             className="ghost icon-btn"
