@@ -6,6 +6,7 @@ from .serializers import FamilyMemberSerializer
 from family_trees.models import FamilyTree, TreeMember
 from users.models import User
 from edit_history.utils import log_edit
+from relationships.rules import CHILD_TYPES, PARENT_TYPES
 
 
 def get_current_user(request):
@@ -13,17 +14,8 @@ def get_current_user(request):
     return User.objects.get(id=user_id)
 
 
-# What a relationship type says about member_1 relative to member_2. A person who is the
-# parent / grandparent of someone (member_1 of a "Father" link, or member_2 of a "Son" link)
-# is a root of the tree: deleting them would orphan their descendants.
-PARENT_TYPES = {
-    'Father', 'Mother', 'Stepfather', 'Stepmother', 'Step Father', 'Step Mother',
-    'Grandfather', 'Grandmother',
-}
-CHILD_TYPES = {
-    'Son', 'Daughter', 'Stepson', 'Stepdaughter', 'Step Son', 'Step Daughter',
-    'Adopted Son', 'Adopted Daughter', 'Grandson', 'Granddaughter',
-}
+# A person who is the parent / grandparent of someone is a root of the tree: deleting them would
+# orphan their descendants (see relationships/rules.py for how the types are read).
 
 
 def has_descendants(member):

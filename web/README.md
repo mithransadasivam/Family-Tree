@@ -43,6 +43,7 @@ Then commit `webapp/` and deploy the backend to Railway. Do not deploy from a pl
 | Top bar: "Create a family" and "Join with a code" dialogs next to Sign out (`FamilyDialogs.tsx`, `Protected.tsx`) | built, tested |
 | Add person: First name* + Last name + a required relationship ("X is the ___ of Y"; none needed for the first person); birth details/photo via Edit; no death fields (`MemberForm.tsx`) | built, tested |
 | Root protection: a person with children/grandchildren cannot be deleted (UI disabled + server rule in `family_members/views.py`) | built, tested |
+| Relationship rules: one link per pair (no Husband+Brother), no parent/child loops, same family only; enforced by the server (`relationships/rules.py`), and already-connected people are hidden in the pickers | built, tested |
 | Undo (10 s) after deleting a person or removing a relationship; the person is re-created with all details and relationships re-linked (`UndoBar.tsx`, `useRestore` in `queries.ts`) | built, tested against Django |
 | Poster: print-ready tree as PNG, SVG, PDF (print dialog) or share sheet, light/dark (`PosterDialog.tsx`, `poster.ts`) | built; PNG, preview and print HTML tested, a real print dialog not |
 | Manage page (`ManagePage.tsx`): invite codes, require-approval setting, approve/reject join requests, edit history, delete (owner) / leave (member) | built, tested against Django |

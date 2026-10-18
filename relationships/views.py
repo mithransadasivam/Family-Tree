@@ -6,6 +6,7 @@ from .serializers import RelationshipSerializer, RelationshipTypeSerializer
 from family_trees.models import FamilyTree, TreeMember
 from users.models import User
 from edit_history.utils import log_edit
+from .rules import check_relationship
 
 
 def get_current_user(request):
@@ -37,6 +38,12 @@ class RelationshipListView(APIView):
             return Response({'error': 'Not a member of this tree'}, status=status.HTTP_403_FORBIDDEN)
         serializer = RelationshipSerializer(data=request.data)
         if serializer.is_valid():
+            data = serializer.validated_data
+            problem = check_relationship(
+                int(tree_id), data['member_1'], data['member_2'], data['relationship_type']
+            )
+            if problem:
+                return Response({'error': problem}, status=status.HTTP_400_BAD_REQUEST)
             rel = serializer.save(created_by=user)
             tree = FamilyTree.objects.get(id=tree_id)
             log_edit(tree, 'relationship', rel.id, user, f'Added relationship')
@@ -67,8 +74,10 @@ class RelationshipDetailView(APIView):
                 return Response({'error': 'Member is not in this tree'}, status=status.HTTP_400_BAD_REQUEST)
         member_1 = serializer.validated_data.get('member_1', rel.member_1)
         member_2 = serializer.validated_data.get('member_2', rel.member_2)
-        if member_1.id == member_2.id:
-            return Response({'error': 'A person cannot be related to themselves'}, status=status.HTTP_400_BAD_REQUEST)
+        rel_type = serializer.validated_data.get('relationship_type', rel.relationship_type)
+        problem = check_relationship(rel.tree_id, member_1, member_2, rel_type, exclude_id=rel.id)
+        if problem:
+            return Response({'error': problem}, status=status.HTTP_400_BAD_REQUEST)
 
         rel = serializer.save()
         log_edit(rel.tree, 'relationship', rel.id, user, 'Updated relationship')

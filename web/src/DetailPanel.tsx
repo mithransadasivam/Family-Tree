@@ -136,7 +136,14 @@ export default function DetailPanel({
   const isRoot = hasDescendants(member.id, relationships)
 
   const byId = new Map(members.map((m) => [m.id, m]))
-  const candidates = members.filter((m) => m.id !== member.id)
+  // Two people can have only one relationship between them, so people already connected to
+  // this person are not offered again (edit or remove the existing link instead).
+  const relatedIds = new Set(
+    relationships
+      .filter((r) => r.member_1 === member.id || r.member_2 === member.id)
+      .map((r) => (r.member_1 === member.id ? r.member_2 : r.member_1)),
+  )
+  const candidates = members.filter((m) => m.id !== member.id && !relatedIds.has(m.id))
 
   const grouped = new Map<Group, { rel: Relationship; other: number; label: string }[]>()
   for (const rel of relationships) {
@@ -238,7 +245,9 @@ export default function DetailPanel({
                       treeId={treeId}
                       rel={rel}
                       member={member}
-                      candidates={candidates}
+                      candidates={members.filter(
+                        (m) => m.id !== member.id && (!relatedIds.has(m.id) || m.id === other),
+                      )}
                       types={types.data}
                       onDone={() => setEditingRel(null)}
                     />
@@ -283,7 +292,11 @@ export default function DetailPanel({
 
       <h4>Connect someone</h4>
       {candidates.length === 0 ? (
-        <p className="muted">Add another person first, then connect them here.</p>
+        <p className="muted">
+          {members.length <= 1
+            ? 'Add another person first, then connect them here.'
+            : `${member.first_name} is already connected to everyone else. Edit a link above to change how.`}
+        </p>
       ) : (
         <div className="sentence">
           <select value={otherId} onChange={(e) => setOtherId(e.target.value)} aria-label="Related member">
@@ -302,6 +315,9 @@ export default function DetailPanel({
           <button disabled={!otherId || typeId === undefined || addRel.isPending} onClick={submit}>
             {addRel.isPending ? 'Connecting…' : 'Connect'}
           </button>
+          {relatedIds.size > 0 && (
+            <p className="muted small">Only people not yet connected to {member.first_name} are listed.</p>
+          )}
         </div>
       )}
       {types.error && (
