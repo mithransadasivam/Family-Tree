@@ -43,8 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -74,11 +73,6 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
     var newBirthPlace by remember { mutableStateOf("") }
     var isAddingMember by remember { mutableStateOf(false) }
     var addMemberError by remember { mutableStateOf("") }
-
-    // Rendered height (including its padding) of the "+ Add Family Member" button overlaid at
-    // the bottom of the canvas, so the zoom controls can sit just above it at any font scale.
-    val density = LocalDensity.current
-    var addButtonHeight by remember { mutableStateOf(0.dp) }
 
     var tree by remember { mutableStateOf<FamilyTree?>(null) }
     var isOwner by remember { mutableStateOf(false) }
@@ -237,34 +231,37 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
                     ) { Text("+ Add Family Member") }
                 }
             } else {
-                FamilyTreeCanvas(
-                    members = members,
-                    relationships = relationships,
-                    scale = treeScale,
-                    onScaleChange = { treeScale = it },
-                    offset = Offset(treeOffsetX, treeOffsetY),
-                    onOffsetChange = { newOffset ->
-                        treeOffsetX = newOffset.x
-                        treeOffsetY = newOffset.y
-                    },
-                    hasAutoFitted = hasAutoFitted,
-                    onAutoFitted = { hasAutoFitted = true },
-                    bottomOverlayHeight = addButtonHeight,
-                    onMemberClick = { member ->
-                        navController.navigate(Screen.MemberDetail.createRoute(member.id))
-                    }
-                )
-                Button(
-                    onClick = { showAddMember = true },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .widthIn(max = 480.dp)
-                        .fillMaxWidth()
-                        // Placed before padding() so the measured height includes the 16.dp margins.
-                        .onSizeChanged { addButtonHeight = with(density) { it.height.toDp() } }
-                        .padding(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Primary)
-                ) { Text("+ Add Family Member") }
+                // The button gets its own row below the canvas (instead of floating over it) so
+                // tree nodes can never be drawn or panned underneath it at any screen size. The
+                // canvas takes whatever height is left and clips to it.
+                Column(modifier = Modifier.fillMaxSize()) {
+                    FamilyTreeCanvas(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        members = members,
+                        relationships = relationships,
+                        scale = treeScale,
+                        onScaleChange = { treeScale = it },
+                        offset = Offset(treeOffsetX, treeOffsetY),
+                        onOffsetChange = { newOffset ->
+                            treeOffsetX = newOffset.x
+                            treeOffsetY = newOffset.y
+                        },
+                        hasAutoFitted = hasAutoFitted,
+                        onAutoFitted = { hasAutoFitted = true },
+                        onMemberClick = { member ->
+                            navController.navigate(Screen.MemberDetail.createRoute(member.id))
+                        }
+                    )
+                    Button(
+                        onClick = { showAddMember = true },
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .widthIn(max = 480.dp)
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Primary)
+                    ) { Text("+ Add Family Member") }
+                }
             }
         }
     }
@@ -791,6 +788,7 @@ private fun computeCardWidths(
 
 @Composable
 fun FamilyTreeCanvas(
+    modifier: Modifier = Modifier,
     members: List<FamilyMember>,
     relationships: List<Relationship>,
     scale: Float,
@@ -799,7 +797,6 @@ fun FamilyTreeCanvas(
     onOffsetChange: (Offset) -> Unit,
     hasAutoFitted: Boolean,
     onAutoFitted: () -> Unit,
-    bottomOverlayHeight: Dp,
     onMemberClick: (FamilyMember) -> Unit
 ) {
     val density = LocalDensity.current
@@ -862,7 +859,7 @@ fun FamilyTreeCanvas(
         onOffsetChange(offset + panChange)
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = modifier.clipToBounds()) {
         val screenWidthPx = with(density) { maxWidth.toPx() }
         val screenHeightPx = with(density) { maxHeight.toPx() }
 
@@ -1071,9 +1068,7 @@ fun FamilyTreeCanvas(
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    // Sit 12.dp above the measured height of the "+ Add Family Member" button
-                    // drawn on top of this canvas at the same screen edge.
-                    .padding(end = 12.dp, bottom = bottomOverlayHeight + 12.dp)
+                    .padding(end = 12.dp, bottom = 12.dp)
             ) {
                 ZoomButton(icon = Icons.Default.CenterFocusStrong, contentDescription = "Fit to screen") {
                     fitToScreen()

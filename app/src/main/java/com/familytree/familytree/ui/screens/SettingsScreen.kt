@@ -130,7 +130,10 @@ fun SettingsScreen(navController: NavController) {
         }
     ) { padding ->
         Column(
-            modifier = Modifier.maxContentWidth().fillMaxSize().verticalScroll(rememberScrollState()).padding(padding).padding(16.dp)
+            // padding(padding) must come BEFORE verticalScroll: the Scaffold inset (top bar + ad
+            // banner + nav bar) then shrinks the scroll viewport instead of scrolling inside it,
+            // so content can never extend underneath the bottom bar.
+            modifier = Modifier.maxContentWidth().fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp)
         ) {
             Text("Account", fontSize = 11.sp, color = TextHint)
             Spacer(Modifier.height(8.dp))
