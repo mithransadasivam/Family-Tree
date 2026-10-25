@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Remove
@@ -43,7 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -218,50 +219,49 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = Primary)
             } else if (members.isEmpty()) {
+                // Empty tree: no separate button - the header "+" is the one way to add a member,
+                // so an arrow and hint text point the eye up at it.
+                Icon(
+                    Icons.Default.ArrowUpward,
+                    contentDescription = null,
+                    tint = Primary,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        // Roughly centered under the header "+" (it sits just left of the 48dp "more" icon).
+                        .padding(top = 8.dp, end = 52.dp)
+                        .size(32.dp)
+                )
                 Column(
-                    modifier = Modifier.align(Alignment.Center),
+                    modifier = Modifier.align(Alignment.Center).padding(horizontal = 32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text("🌳", style = MaterialTheme.typography.displayLarge)
-                    Text("Add family members to see the tree", color = TextHint)
-                    Spacer(Modifier.height(16.dp))
-                    Button(
-                        onClick = { showAddMember = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = Primary)
-                    ) { Text("+ Add Family Member") }
+                    Text("Add family members to see the tree", color = TextHint, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Tap + above to add your first family member",
+                        color = Primary,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
                 }
             } else {
-                // The button gets its own row below the canvas (instead of floating over it) so
-                // tree nodes can never be drawn or panned underneath it at any screen size. The
-                // canvas takes whatever height is left and clips to it.
-                Column(modifier = Modifier.fillMaxSize()) {
-                    FamilyTreeCanvas(
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        members = members,
-                        relationships = relationships,
-                        scale = treeScale,
-                        onScaleChange = { treeScale = it },
-                        offset = Offset(treeOffsetX, treeOffsetY),
-                        onOffsetChange = { newOffset ->
-                            treeOffsetX = newOffset.x
-                            treeOffsetY = newOffset.y
-                        },
-                        hasAutoFitted = hasAutoFitted,
-                        onAutoFitted = { hasAutoFitted = true },
-                        onMemberClick = { member ->
-                            navController.navigate(Screen.MemberDetail.createRoute(member.id))
-                        }
-                    )
-                    Button(
-                        onClick = { showAddMember = true },
-                        modifier = Modifier
-                            .align(Alignment.CenterHorizontally)
-                            .widthIn(max = 480.dp)
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Primary)
-                    ) { Text("+ Add Family Member") }
-                }
+                FamilyTreeCanvas(
+                    members = members,
+                    relationships = relationships,
+                    scale = treeScale,
+                    onScaleChange = { treeScale = it },
+                    offset = Offset(treeOffsetX, treeOffsetY),
+                    onOffsetChange = { newOffset ->
+                        treeOffsetX = newOffset.x
+                        treeOffsetY = newOffset.y
+                    },
+                    hasAutoFitted = hasAutoFitted,
+                    onAutoFitted = { hasAutoFitted = true },
+                    onMemberClick = { member ->
+                        navController.navigate(Screen.MemberDetail.createRoute(member.id))
+                    }
+                )
             }
         }
     }
@@ -788,7 +788,6 @@ private fun computeCardWidths(
 
 @Composable
 fun FamilyTreeCanvas(
-    modifier: Modifier = Modifier,
     members: List<FamilyMember>,
     relationships: List<Relationship>,
     scale: Float,
@@ -859,7 +858,7 @@ fun FamilyTreeCanvas(
         onOffsetChange(offset + panChange)
     }
 
-    BoxWithConstraints(modifier = modifier.clipToBounds()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val screenWidthPx = with(density) { maxWidth.toPx() }
         val screenHeightPx = with(density) { maxHeight.toPx() }
 
