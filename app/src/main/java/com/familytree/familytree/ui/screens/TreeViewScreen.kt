@@ -43,6 +43,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -72,6 +74,11 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
     var newBirthPlace by remember { mutableStateOf("") }
     var isAddingMember by remember { mutableStateOf(false) }
     var addMemberError by remember { mutableStateOf("") }
+
+    // Rendered height (including its padding) of the "+ Add Family Member" button overlaid at
+    // the bottom of the canvas, so the zoom controls can sit just above it at any font scale.
+    val density = LocalDensity.current
+    var addButtonHeight by remember { mutableStateOf(0.dp) }
 
     var tree by remember { mutableStateOf<FamilyTree?>(null) }
     var isOwner by remember { mutableStateOf(false) }
@@ -242,6 +249,7 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
                     },
                     hasAutoFitted = hasAutoFitted,
                     onAutoFitted = { hasAutoFitted = true },
+                    bottomOverlayHeight = addButtonHeight,
                     onMemberClick = { member ->
                         navController.navigate(Screen.MemberDetail.createRoute(member.id))
                     }
@@ -252,6 +260,8 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
                         .align(Alignment.BottomCenter)
                         .widthIn(max = 480.dp)
                         .fillMaxWidth()
+                        // Placed before padding() so the measured height includes the 16.dp margins.
+                        .onSizeChanged { addButtonHeight = with(density) { it.height.toDp() } }
                         .padding(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Primary)
                 ) { Text("+ Add Family Member") }
@@ -789,6 +799,7 @@ fun FamilyTreeCanvas(
     onOffsetChange: (Offset) -> Unit,
     hasAutoFitted: Boolean,
     onAutoFitted: () -> Unit,
+    bottomOverlayHeight: Dp,
     onMemberClick: (FamilyMember) -> Unit
 ) {
     val density = LocalDensity.current
@@ -1060,10 +1071,9 @@ fun FamilyTreeCanvas(
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    // Bottom clearance is taller than the requested 12.dp so these don't sit
-                    // underneath the full-width "+ Add Family Member" button drawn on top of
-                    // this canvas at the same screen edge.
-                    .padding(end = 12.dp, bottom = 76.dp)
+                    // Sit 12.dp above the measured height of the "+ Add Family Member" button
+                    // drawn on top of this canvas at the same screen edge.
+                    .padding(end = 12.dp, bottom = bottomOverlayHeight + 12.dp)
             ) {
                 ZoomButton(icon = Icons.Default.CenterFocusStrong, contentDescription = "Fit to screen") {
                     fitToScreen()
