@@ -5,6 +5,9 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.familytree.familytree.ui.components.maxContentWidth
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -113,7 +116,12 @@ fun LoginScreen(navController: NavController) {
         contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(32.dp),
+            // Scrollable so the logo + button stay reachable on short screens / landscape.
+            modifier = Modifier
+                .maxContentWidth(420.dp)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {

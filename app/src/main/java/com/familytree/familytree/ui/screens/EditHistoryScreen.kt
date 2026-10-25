@@ -1,5 +1,7 @@
 package com.familytree.familytree.ui.screens
 
+import com.familytree.familytree.ui.components.maxContentWidth
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -85,7 +87,7 @@ fun EditHistoryScreen(navController: NavController, treeId: Int) {
                 Text("No edit history yet", color = TextHint)
             }
             else -> LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                modifier = Modifier.maxContentWidth().fillMaxSize().padding(padding).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(history) { item ->

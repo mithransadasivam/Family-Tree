@@ -1,5 +1,7 @@
 package com.familytree.familytree.ui.screens
 
+import com.familytree.familytree.ui.components.maxContentWidth
+
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -104,7 +106,7 @@ fun ProfileScreen(navController: NavController) {
             user != null -> {
                 val u = user!!
                 Column(
-                    modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                    modifier = Modifier.maxContentWidth().fillMaxSize().padding(padding).padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Spacer(Modifier.height(20.dp))

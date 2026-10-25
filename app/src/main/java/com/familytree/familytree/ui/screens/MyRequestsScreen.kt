@@ -1,5 +1,7 @@
 package com.familytree.familytree.ui.screens
 
+import com.familytree.familytree.ui.components.maxContentWidth
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -84,7 +86,7 @@ fun MyRequestsScreen(navController: NavController) {
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                modifier = Modifier.maxContentWidth().fillMaxSize().padding(padding).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(myRequests, key = { it.id }) { req ->

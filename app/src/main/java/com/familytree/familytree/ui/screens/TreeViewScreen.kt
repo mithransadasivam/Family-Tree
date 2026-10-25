@@ -10,6 +10,8 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -248,6 +250,7 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
                     onClick = { showAddMember = true },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
+                        .widthIn(max = 480.dp)
                         .fillMaxWidth()
                         .padding(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Primary)
@@ -261,7 +264,8 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
             onDismissRequest = { if (!isAddingMember) { showAddMember = false; addMemberError = "" } },
             title = { Text("Add Family Member") },
             text = {
-                Column {
+                // Scrollable so all fields stay reachable on short screens / landscape with the keyboard open.
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     OutlinedTextField(value = newFirstName, onValueChange = { newFirstName = it }, label = { Text("First Name *") }, modifier = Modifier.fillMaxWidth(), enabled = !isAddingMember)
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(value = newLastName, onValueChange = { newLastName = it }, label = { Text("Last Name") }, modifier = Modifier.fillMaxWidth(), enabled = !isAddingMember)
@@ -922,13 +926,19 @@ fun FamilyTreeCanvas(
                         transformOrigin = TransformOrigin(0f, 0f)
                     }
             ) {
+                // All stroke/corner/dash sizes are dp so the drawing looks the same on every density.
+                val connectorStroke = 1.2.dp.toPx()
+                val spouseStroke = 1.2.dp.toPx()
+                val spouseOffset = 1.2.dp.toPx()
+                val dotRadius = 0.7.dp.toPx()
+
                 // Subtle dot-grid background, rgba(74, 124, 111, 0.15)
                 val dotColor = Color(0x264A7C6F)
                 var gx = 0f
                 while (gx < size.width) {
                     var gy = 0f
                     while (gy < size.height) {
-                        drawCircle(dotColor, radius = 1.6f, center = Offset(gx, gy))
+                        drawCircle(dotColor, radius = dotRadius, center = Offset(gx, gy))
                         gy += dotSpacing
                     }
                     gx += dotSpacing
@@ -936,8 +946,8 @@ fun FamilyTreeCanvas(
 
                 val bioColor = Color(0xFF4A7C6F)
                 val spouseColor = Color(0xFFD4956A)
-                val dashedEffect = PathEffect.dashPathEffect(floatArrayOf(16f, 10f), 0f)
-                val dottedEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 9f), 0f)
+                val dashedEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()), 0f)
+                val dottedEffect = PathEffect.dashPathEffect(floatArrayOf(1.dp.toPx(), 3.5.dp.toPx()), 0f)
 
                 fun connectorEffect(cat: RelCategory): PathEffect? = when (cat) {
                     RelCategory.BIO -> null
@@ -957,15 +967,15 @@ fun FamilyTreeCanvas(
                     val startX = leftPos.x + (cardWidthOf[leftId] ?: 0f) / 2
                     val endX = rightPos.x - (cardWidthOf[rightId] ?: 0f) / 2
                     val midY = (leftPos.y + rightPos.y) / 2
-                    drawLine(spouseColor, Offset(startX, midY - 3f), Offset(endX, midY - 3f), strokeWidth = 3f, cap = StrokeCap.Round)
-                    drawLine(spouseColor, Offset(startX, midY + 3f), Offset(endX, midY + 3f), strokeWidth = 3f, cap = StrokeCap.Round)
+                    drawLine(spouseColor, Offset(startX, midY - spouseOffset), Offset(endX, midY - spouseOffset), strokeWidth = spouseStroke, cap = StrokeCap.Round)
+                    drawLine(spouseColor, Offset(startX, midY + spouseOffset), Offset(endX, midY + spouseOffset), strokeWidth = spouseStroke, cap = StrokeCap.Round)
                 }
 
                 // Step/adopted sibling direct links
                 layout.siblingLines.forEach { (a, b, cat) ->
                     val p1 = positions[a] ?: return@forEach
                     val p2 = positions[b] ?: return@forEach
-                    drawLine(bioColor, p1, p2, strokeWidth = 2.5f, pathEffect = connectorEffect(cat), cap = StrokeCap.Round)
+                    drawLine(bioColor, p1, p2, strokeWidth = connectorStroke, pathEffect = connectorEffect(cat), cap = StrokeCap.Round)
                 }
 
                 // Parent -> children connectors. A single vertical trunk drops from the midpoint
@@ -996,7 +1006,7 @@ fun FamilyTreeCanvas(
                         val leftEdge = leftPos.x + (cardWidthOf[leftId] ?: 0f) / 2f
                         val rightEdge = rightPos.x - (cardWidthOf[rightId] ?: 0f) / 2f
                         // Horizontal line connecting the bottom of both spouse cards
-                        drawLine(bioColor, Offset(leftEdge, trunkBottomY), Offset(rightEdge, trunkBottomY), strokeWidth = 2.5f)
+                        drawLine(bioColor, Offset(leftEdge, trunkBottomY), Offset(rightEdge, trunkBottomY), strokeWidth = connectorStroke)
                         // Trunk drops from the midpoint between the two spouse cards' centers,
                         // not the midpoint of their facing edges - matches where the double
                         // spouse-connector line is centered even when the cards differ in width.
@@ -1011,9 +1021,9 @@ fun FamilyTreeCanvas(
                     val maxX = maxOf(trunkX, childPositions.maxOf { it.second.x })
 
                     // Trunk from the couple's midpoint (or solo parent) down to the sibling bus
-                    drawLine(bioColor, Offset(trunkX, trunkBottomY), Offset(trunkX, busY), strokeWidth = 2.5f)
+                    drawLine(bioColor, Offset(trunkX, trunkBottomY), Offset(trunkX, busY), strokeWidth = connectorStroke)
                     // Horizontal bus connecting all the siblings
-                    drawLine(bioColor, Offset(minX, busY), Offset(maxX, busY), strokeWidth = 2.5f)
+                    drawLine(bioColor, Offset(minX, busY), Offset(maxX, busY), strokeWidth = connectorStroke)
                     // Branch up into each child, styled by that child's relationship category
                     childPositions.forEach { (childId, childPos) ->
                         val cat = layout.childCategory[childId] ?: RelCategory.BIO
@@ -1021,7 +1031,7 @@ fun FamilyTreeCanvas(
                             bioColor,
                             Offset(childPos.x, busY),
                             Offset(childPos.x, childPos.y - cardHeight / 2f),
-                            strokeWidth = 2.5f,
+                            strokeWidth = connectorStroke,
                             pathEffect = connectorEffect(cat)
                         )
                     }
@@ -1092,12 +1102,12 @@ private fun DrawScope.drawMemberCard(
 ) {
     val left = center.x - cardWidth / 2
     val top = center.y - cardHeight / 2
-    val cornerRadius = CornerRadius(14f, 14f)
+    val cornerRadius = CornerRadius(5.dp.toPx(), 5.dp.toPx())
 
     // Drop shadow
     drawRoundRect(
         color = Color(0x1A2E5C51),
-        topLeft = Offset(left, top + 3f),
+        topLeft = Offset(left, top + 1.dp.toPx()),
         size = Size(cardWidth, cardHeight),
         cornerRadius = cornerRadius
     )
@@ -1114,8 +1124,8 @@ private fun DrawScope.drawMemberCard(
     drawRoundRect(
         color = borderColor,
         topLeft = Offset(left, top),
-        size = Size(6f, cardHeight),
-        cornerRadius = CornerRadius(3f, 3f)
+        size = Size(2.dp.toPx(), cardHeight),
+        cornerRadius = CornerRadius(1.dp.toPx(), 1.dp.toPx())
     )
 
     // Faint outer border
@@ -1124,13 +1134,13 @@ private fun DrawScope.drawMemberCard(
         topLeft = Offset(left, top),
         size = Size(cardWidth, cardHeight),
         cornerRadius = cornerRadius,
-        style = Stroke(width = 1.2f)
+        style = Stroke(width = 1.dp.toPx())
     )
 
     // Avatar circle with initial
     val avatarCenter = Offset(left + padding + avatarRadius, center.y)
     drawCircle(color = borderColor.copy(alpha = 0.18f), radius = avatarRadius, center = avatarCenter)
-    drawCircle(color = borderColor, radius = avatarRadius, center = avatarCenter, style = Stroke(width = 1.5f))
+    drawCircle(color = borderColor, radius = avatarRadius, center = avatarCenter, style = Stroke(width = 1.dp.toPx()))
 
     val initial = member.first_name.trim().firstOrNull()?.uppercase() ?: "?"
     val avatarPaint = android.graphics.Paint().apply {
@@ -1199,26 +1209,26 @@ private fun TreeLegend(modifier: Modifier = Modifier) {
             .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
         LegendItem(label = "Spouse", color = Color(0xFFD4956A)) { color ->
-            drawLine(color, Offset(0f, size.height / 2f - 3f), Offset(size.width, size.height / 2f - 3f), strokeWidth = 3f)
-            drawLine(color, Offset(0f, size.height / 2f + 3f), Offset(size.width, size.height / 2f + 3f), strokeWidth = 3f)
+            drawLine(color, Offset(0f, size.height / 2f - 1.dp.toPx()), Offset(size.width, size.height / 2f - 1.dp.toPx()), strokeWidth = 1.2.dp.toPx())
+            drawLine(color, Offset(0f, size.height / 2f + 1.dp.toPx()), Offset(size.width, size.height / 2f + 1.dp.toPx()), strokeWidth = 1.2.dp.toPx())
         }
         Spacer(Modifier.height(8.dp))
         LegendItem(label = "Parent / Child", color = Color(0xFF4A7C6F)) { color ->
-            drawLine(color, Offset(0f, size.height / 2f), Offset(size.width, size.height / 2f), strokeWidth = 3.5f)
+            drawLine(color, Offset(0f, size.height / 2f), Offset(size.width, size.height / 2f), strokeWidth = 1.4.dp.toPx())
         }
         Spacer(Modifier.height(8.dp))
         LegendItem(label = "Step", color = Color(0xFF4A7C6F)) { color ->
             drawLine(
                 color, Offset(0f, size.height / 2f), Offset(size.width, size.height / 2f),
-                strokeWidth = 3f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 6f), 0f)
+                strokeWidth = 1.2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 2.5.dp.toPx()), 0f)
             )
         }
         Spacer(Modifier.height(8.dp))
         LegendItem(label = "Adopted", color = Color(0xFF4A7C6F)) { color ->
             drawLine(
                 color, Offset(0f, size.height / 2f), Offset(size.width, size.height / 2f),
-                strokeWidth = 3f, cap = StrokeCap.Round,
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(1.5f, 6f), 0f)
+                strokeWidth = 1.2.dp.toPx(), cap = StrokeCap.Round,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(0.6.dp.toPx(), 2.5.dp.toPx()), 0f)
             )
         }
     }

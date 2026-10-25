@@ -1,5 +1,7 @@
 package com.familytree.familytree.ui.screens
 
+import com.familytree.familytree.ui.components.maxContentWidth
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -134,7 +136,7 @@ fun HomeScreen(navController: NavController) {
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                modifier = Modifier.maxContentWidth().fillMaxSize().padding(padding).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 if (trees.isEmpty()) {

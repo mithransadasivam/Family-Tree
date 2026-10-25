@@ -1,5 +1,7 @@
 package com.familytree.familytree.ui.screens
 
+import com.familytree.familytree.ui.components.maxContentWidth
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -120,7 +122,7 @@ fun PendingRequestsScreen(navController: NavController) {
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                modifier = Modifier.maxContentWidth().fillMaxSize().padding(padding).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 if (ownedTrees.isEmpty()) {

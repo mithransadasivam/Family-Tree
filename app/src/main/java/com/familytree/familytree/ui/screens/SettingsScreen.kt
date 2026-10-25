@@ -1,5 +1,7 @@
 package com.familytree.familytree.ui.screens
 
+import com.familytree.familytree.ui.components.maxContentWidth
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -128,7 +130,7 @@ fun SettingsScreen(navController: NavController) {
         }
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)
+            modifier = Modifier.maxContentWidth().fillMaxSize().verticalScroll(rememberScrollState()).padding(padding).padding(16.dp)
         ) {
             Text("Account", fontSize = 11.sp, color = TextHint)
             Spacer(Modifier.height(8.dp))

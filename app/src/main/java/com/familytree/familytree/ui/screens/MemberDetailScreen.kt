@@ -1,5 +1,7 @@
 package com.familytree.familytree.ui.screens
 
+import com.familytree.familytree.ui.components.maxContentWidth
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -62,7 +64,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -195,7 +199,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
         } else {
             member?.let { m ->
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                    modifier = Modifier.maxContentWidth().fillMaxSize().padding(padding).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     item {
@@ -354,9 +358,12 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
 
                 Text("Select Other Member", fontSize = 12.sp, color = TextHint)
                 Spacer(Modifier.height(4.dp))
+                // Scales with the screen: ~130dp on a typical phone, but shrinks on short/landscape
+                // screens so the relationship list below keeps usable room.
+                val memberPickerMaxHeight = (LocalConfiguration.current.screenHeightDp * 0.17f).dp.coerceIn(72.dp, 200.dp)
                 Box(
                     modifier = Modifier
-                        .heightIn(max = 130.dp)
+                        .heightIn(max = memberPickerMaxHeight)
                         .verticalScroll(rememberScrollState())
                 ) {
                     Column {
