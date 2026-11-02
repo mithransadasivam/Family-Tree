@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { loadGoogleScript, loginWithGoogle } from './auth'
 import { Ring, Users, Fit } from './Icons'
 import { LogoMark } from './Logo'
@@ -20,6 +20,9 @@ const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
 export default function LoginPage() {
   const btn = useRef<HTMLDivElement>(null)
   const nav = useNavigate()
+  const from = (useLocation().state as { from?: string } | null)?.from
+  // Only return to a page of this site, never to an arbitrary address.
+  const back = from && from.startsWith('/') && !from.startsWith('//') && !from.startsWith('/login') ? from : '/'
   const qc = useQueryClient()
   const [error, setError] = useState<string | null>(null)
 
@@ -28,7 +31,7 @@ export default function LoginPage() {
       setError(null)
       await loginWithGoogle(credential)
       await qc.invalidateQueries({ queryKey: ['trees'] })
-      nav('/', { replace: true })
+      nav(back, { replace: true })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sign-in failed')
     }

@@ -107,6 +107,25 @@ WEB_ORIGINS = [
 CORS_ALLOWED_ORIGINS = WEB_ORIGINS
 CORS_ALLOW_CREDENTIALS = True  # lets the browser send the auth cookies
 
+# Where links in emails point. Set SITE_URL to the public address (e.g. https://kinship-family.netlify.app).
+SITE_URL = os.getenv('SITE_URL', '').rstrip('/') or (WEB_ORIGINS[0] if WEB_ORIGINS else '')
+
+# Join-request emails go out over SMTP once EMAIL_HOST_USER and EMAIL_HOST_PASSWORD are set
+# (for Gmail, an "app password"). Until then nothing is sent; in development they print to the console.
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_TIMEOUT = 10
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', f'Kinship <{EMAIL_HOST_USER}>' if EMAIL_HOST_USER else 'Kinship <no-reply@localhost>')
+if EMAIL_HOST_PASSWORD:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+elif DEBUG:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.dummy.EmailBackend'
+
 # httpOnly auth cookies for the web client. If the web app and API are on different sites,
 # set AUTH_COOKIE_SAMESITE=None (requires HTTPS); a same-origin proxy avoids that.
 AUTH_COOKIE_ACCESS = 'kinship_access'

@@ -141,3 +141,16 @@ export interface Relationship {
 
 export const fullName = (m: Pick<Member, 'first_name' | 'last_name'>) =>
   `${m.first_name} ${m.last_name}`.trim()
+
+/** A pending request to join a community or a family, as the owner sees it when opening the emailed link. */
+export interface ApprovalRequest {
+  id: number
+  kind: 'community' | 'tree'
+  target_id: number
+  target_name: string
+  requester_name: string
+  requester_email: string
+  message: string
+  status: 'pending' | 'approved' | 'rejected'
+  created_at: string
+}

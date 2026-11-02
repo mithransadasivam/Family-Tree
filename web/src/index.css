@@ -1920,3 +1920,8 @@ button.profile-chip {
     display: none;
   }
 }
+
+.card.highlight {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--gold) 40%, transparent), var(--shadow);
+}

@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ENDPOINTS, json } from './api'
 import type {
+  ApprovalRequest,
   Community,
   CommunityDetail,
   CommunityFound,
@@ -119,4 +120,28 @@ export function useCommunityActions(communityId: number) {
       onSuccess: all,
     }),
   }
+}
+
+const approvalPath = (kind: string, id: number) =>
+  kind === 'tree' ? ENDPOINTS.joinRequest(id) : ENDPOINTS.communityRequest(id)
+
+export const useApprovalRequest = (kind: string, id: number) =>
+  useQuery({
+    queryKey: ['approval', kind, id],
+    queryFn: () => api<ApprovalRequest>(approvalPath(kind, id)),
+  })
+
+export function useDecideApproval(kind: string, id: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (status: 'approved' | 'rejected') => api(approvalPath(kind, id), json('PATCH', { status })),
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: ['approval', kind, id] }),
+        qc.invalidateQueries({ queryKey: ['community-requests'] }),
+        qc.invalidateQueries({ queryKey: ['community-members'] }),
+        qc.invalidateQueries({ queryKey: ['join-requests'] }),
+        qc.invalidateQueries({ queryKey: ['communities'] }),
+      ]),
+  })
 }

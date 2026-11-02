@@ -5,6 +5,9 @@ from rest_framework.views import APIView
 
 from family_trees.models import FamilyTree
 from users.models import User
+from django.utils import timezone
+from datetime import timedelta
+from utils.notify import email_owner, site_link
 from utils.throttles import CommunityFindThrottle, CommunitySearchThrottle
 from .models import Community, CommunityJoinRequest, CommunityMember, CommunityTree
 from .search import search_people
@@ -157,8 +160,20 @@ class CommunityJoinView(APIView):
             return err('You are already in this community')
         if CommunityJoinRequest.objects.filter(community=community, requester=user, status='pending').exists():
             return err('You already asked to join. The owner will review it.')
+        if CommunityJoinRequest.objects.filter(
+                community=community, requester=user, status='rejected',
+                created_at__gte=timezone.now() - timedelta(days=1)).exists():
+            return err('Your last request was declined. You can ask again tomorrow.')
         message = (request.data.get('message') or '').strip()[:300]
-        CommunityJoinRequest.objects.create(community=community, requester=user, message=message)
+        join = CommunityJoinRequest.objects.create(community=community, requester=user, message=message)
+        email_owner(
+            community.owner,
+            f'{full_name(user)} wants to join {community.name}',
+            f'{full_name(user)} ({user.email}) asked to join your community "{community.name}" on Kinship.\n'
+            + (f'\nTheir message: {message}\n' if message else '')
+            + f'\nReview and approve or decline here (you will need to sign in):\n'
+            f'{site_link(f"/approve/community/{join.id}", request)}\n',
+        )
         return Response({'message': 'Request sent. The owner will review it.'}, status=status.HTTP_201_CREATED)
 
 
@@ -192,7 +207,30 @@ class CommunityRequestsView(APIView):
         } for r in pending])
 
 
+def request_for_owner(request_id, user):
+    join = CommunityJoinRequest.objects.select_related('community', 'requester').filter(id=request_id).first()
+    if not join or join.community.owner_id != user.id:
+        return None
+    return join
+
+
 class CommunityRequestDetailView(APIView):
+    def get(self, request, request_id):
+        join = request_for_owner(request_id, current_user(request))
+        if not join:
+            return err('Request not found', status.HTTP_404_NOT_FOUND)
+        return Response({
+            'id': join.id,
+            'kind': 'community',
+            'target_id': join.community_id,
+            'target_name': join.community.name,
+            'requester_name': full_name(join.requester),
+            'requester_email': join.requester.email,
+            'message': join.message,
+            'status': join.status,
+            'created_at': join.created_at,
+        })
+
     def patch(self, request, request_id):
         user = current_user(request)
         join = CommunityJoinRequest.objects.select_related('community', 'requester').filter(id=request_id).first()

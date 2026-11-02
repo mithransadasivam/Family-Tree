@@ -22,7 +22,7 @@ export default function Protected() {
   const qc = useQueryClient()
   const nav = useNavigate()
   // Create / Join belong to the families list. Inside a family they would only be in the way.
-  const pathname = useLocation().pathname
+  const { pathname, search } = useLocation()
   const onFamiliesPage = pathname === '/'
   const inCommunities = pathname.startsWith('/communities')
   const { theme, toggle } = useTheme()
@@ -49,7 +49,10 @@ export default function Protected() {
       </div>
     )
   }
-  if (isAuthError(error)) return <Navigate to="/login" replace />
+  if (isAuthError(error)) {
+    // Remember where they were going (e.g. an approve link from an email) and return there after sign-in.
+    return <Navigate to="/login" replace state={{ from: `${pathname}${search}` }} />
+  }
 
   const ctx: ShellContext = { openCreate: () => setDialog('create'), openJoin: () => setDialog('join') }
 

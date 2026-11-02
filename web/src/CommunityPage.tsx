@@ -228,34 +228,23 @@ export default function CommunityPage() {
     )
   }
   const d = c.data
+  // Just joined (or never shared anything): lead with the invitation to add a family.
+  const needsShare = d.my_trees.length > 0 && !d.my_trees.some((t) => t.shared)
 
-  return (
-    <main className="page narrow">
-      <header className="page-head rise">
-        <Link to="/communities" className="link-row muted">
-          <Back size={14} /> All communities
-        </Link>
-        <h1 style={{ marginTop: 14 }}>{d.name}</h1>
-        {d.description && <p className="muted">{d.description}</p>}
-        <div className="row wrap" style={{ marginTop: 10 }}>
-          <span className={`badge ${isOwner ? '' : 'pending'}`}>{isOwner ? 'Owner' : 'Member'}</span>
-          <span className="muted small">
-            {d.member_count} {d.member_count === 1 ? 'member' : 'members'} · {d.tree_count}{' '}
-            {d.tree_count === 1 ? 'family' : 'families'} shared
-          </span>
-        </div>
-      </header>
-
-      <People id={id} hasFamilies={d.tree_count > 0} />
-
-      <section className="card rise" style={{ '--i': 2 } as CSSProperties}>
-        <h3>Your families here</h3>
+  const familiesCard = (
+      <section className={`card rise${needsShare ? ' highlight' : ''}`} style={{ '--i': needsShare ? 1 : 2 } as CSSProperties}>
+        <h3>{needsShare ? `Add your family to ${d.name}` : 'Your families here'}</h3>
+        {needsShare && (
+          <p>
+            Welcome! Choose which of your families to add so other members can find them. You can stop sharing at any time.
+          </p>
+        )}
         <p className="muted small">
           Sharing a family lets members of this community find the people in it: name, gender, age and any public phone
           number. Photos, addresses, emails, private numbers and the family tree itself are never shown. You can stop
           sharing at any time.
         </p>
-        {d.my_trees.length === 0 && <p className="muted">You do not own a family yet. Create one from the families page.</p>}
+        {d.my_trees.length === 0 && <p className="muted">You do not own a family yet. Create one from the <Link to="/">families page</Link>, or ask the owner of your family to share it here.</p>}
         <ul className="plain">
           {d.my_trees.map((t) => (
             <li key={t.id} className="request">
@@ -278,6 +267,29 @@ export default function CommunityPage() {
           </p>
         )}
       </section>
+  )
+
+  return (
+    <main className="page narrow">
+      <header className="page-head rise">
+        <Link to="/communities" className="link-row muted">
+          <Back size={14} /> All communities
+        </Link>
+        <h1 style={{ marginTop: 14 }}>{d.name}</h1>
+        {d.description && <p className="muted">{d.description}</p>}
+        <div className="row wrap" style={{ marginTop: 10 }}>
+          <span className={`badge ${isOwner ? '' : 'pending'}`}>{isOwner ? 'Owner' : 'Member'}</span>
+          <span className="muted small">
+            {d.member_count} {d.member_count === 1 ? 'member' : 'members'} · {d.tree_count}{' '}
+            {d.tree_count === 1 ? 'family' : 'families'} shared
+          </span>
+        </div>
+      </header>
+
+      {needsShare && familiesCard}
+      <People id={id} hasFamilies={d.tree_count > 0} />
+
+      {!needsShare && familiesCard}
 
       {isOwner && (
         <>

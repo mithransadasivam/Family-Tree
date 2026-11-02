@@ -8,6 +8,7 @@ from family_codes.models import FamilyCode
 from family_trees.models import FamilyTree, TreeMember
 from users.models import User
 from edit_history.utils import log_edit
+from utils.notify import email_owner, site_link
 from utils.throttles import CodeAttemptThrottle
 
 
@@ -74,6 +75,15 @@ class JoinRequestListCreateView(APIView):
             message=message, family_code_used=family_code
         )
         log_edit(tree, 'join_request', join_request.id, user, f'{user.email} requested to join via code {code}')
+        who = f'{user.first_name} {user.last_name}'.strip() or user.email
+        email_owner(
+            tree.owner,
+            f'{who} wants to join {tree.tree_name}',
+            f'{who} ({user.email}) asked to join your family "{tree.tree_name}" on Kinship.\n'
+            + (f'\nTheir message: {message}\n' if message else '')
+            + f'\nReview and approve or decline here (you will need to sign in):\n'
+            f'{site_link(f"/approve/tree/{join_request.id}", request)}\n',
+        )
         return Response({
             'auto_approved': False,
             'message': 'Request sent! The tree owner will review your request.',
@@ -82,6 +92,24 @@ class JoinRequestListCreateView(APIView):
 
 
 class JoinRequestDetailView(APIView):
+    def get(self, request, request_id):
+        user = get_current_user(request)
+        join_request = JoinRequest.objects.select_related('tree', 'requester').filter(id=request_id).first()
+        if not join_request or join_request.tree.owner != user:
+            return Response({'error': 'Request not found'}, status=status.HTTP_404_NOT_FOUND)
+        data = JoinRequestSerializer(join_request).data
+        return Response({
+            'id': join_request.id,
+            'kind': 'tree',
+            'target_id': join_request.tree_id,
+            'target_name': join_request.tree.tree_name,
+            'requester_name': data['requester_name'],
+            'requester_email': data['requester_email'],
+            'message': join_request.message,
+            'status': join_request.status,
+            'created_at': join_request.created_at,
+        })
+
     def patch(self, request, request_id):
         user = get_current_user(request)
         try:
