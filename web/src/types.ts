@@ -60,6 +60,8 @@ export interface Member {
   /** '' = not recorded. */
   gender: Gender
   phone: string
+  /** Public numbers are visible to the family and shared communities; private ones only to the family owner and the person. */
+  phone_public: boolean
   email: string
   address: string
   /** Id of the user account this person is linked to, if any. */
@@ -69,6 +71,55 @@ export interface Member {
   birth_place: string
   death_date: string | null
   death_place: string
+}
+
+export interface Community {
+  id: number
+  name: string
+  description: string
+  role: 'owner' | 'member'
+  member_count: number
+  tree_count: number
+}
+
+export interface CommunityDetail extends Community {
+  /** The family trees you own, and whether each is shared with this community. */
+  my_trees: { id: number; tree_name: string; shared: boolean }[]
+  pending_requests?: number
+}
+
+export interface CommunityFound {
+  id: number
+  name: string
+  description: string
+  member_count: number
+  status: 'member' | 'pending' | null
+}
+
+/** The basic card a community shows for a person. No photo, address or email. */
+export interface CommunityPerson {
+  id: number
+  first_name: string
+  last_name: string
+  gender: Gender
+  age: number | null
+  deceased: boolean
+  phone: string
+}
+
+export interface CommunityRequest {
+  id: number
+  name: string
+  email: string
+  message: string
+  created_at: string
+}
+
+export interface CommunityMemberRow {
+  user_id: number
+  name: string
+  email: string
+  role: 'owner' | 'member'
 }
 
 export interface RelationshipType {

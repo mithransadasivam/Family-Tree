@@ -18,6 +18,9 @@ class FamilyMember(models.Model):
     # Optional (blank = not recorded). Used so relationships read "Father/Son/..." not "Parent/Child".
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True, default='')
     phone = models.CharField(max_length=20, blank=True)
+    # Public: tree members and communities (if the tree is shared) can see it. Private: only the
+    # tree owner and the person themself (their linked account) can.
+    phone_public = models.BooleanField(default=False)
     email = models.EmailField(blank=True)
     address = models.TextField(blank=True)
     photo_url = models.URLField(max_length=500, blank=True)

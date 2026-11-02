@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import FamilyMember
-from .serializers import FamilyMemberSerializer
+from .serializers import FamilyMemberSerializer, can_see_phone
 from family_trees.models import FamilyTree, TreeMember
 from users.models import User
 from edit_history.utils import log_edit
@@ -38,20 +38,20 @@ class FamilyMemberListView(APIView):
             return Response({'error': 'tree_id is required'}, status=status.HTTP_400_BAD_REQUEST)
         if not TreeMember.objects.filter(tree_id=tree_id, user=user).exists():
             return Response({'error': 'Not a member of this tree'}, status=status.HTTP_403_FORBIDDEN)
-        members = FamilyMember.objects.filter(tree_id=tree_id)
-        return Response(FamilyMemberSerializer(members, many=True).data)
+        members = FamilyMember.objects.filter(tree_id=tree_id).select_related('tree')
+        return Response(FamilyMemberSerializer(members, many=True, context={'viewer': user}).data)
 
     def post(self, request):
         user = get_current_user(request)
         tree_id = request.data.get('tree')
         if not TreeMember.objects.filter(tree_id=tree_id, user=user).exists():
             return Response({'error': 'Not a member of this tree'}, status=status.HTTP_403_FORBIDDEN)
-        serializer = FamilyMemberSerializer(data=request.data)
+        serializer = FamilyMemberSerializer(data=request.data, context={'viewer': user})
         if serializer.is_valid():
             member = serializer.save(created_by=user)
             tree = FamilyTree.objects.get(id=tree_id)
             log_edit(tree, 'family_member', member.id, user, f'Added member: {member.first_name} {member.last_name}')
-            return Response(FamilyMemberSerializer(member).data, status=status.HTTP_201_CREATED)
+            return Response(FamilyMemberSerializer(member, context={'viewer': user}).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -70,7 +70,7 @@ class FamilyMemberDetailView(APIView):
         member, error = self.get_member(member_id, user)
         if error:
             return error
-        return Response(FamilyMemberSerializer(member).data)
+        return Response(FamilyMemberSerializer(member, context={'viewer': user}).data)
 
     def patch(self, request, member_id):
         user = get_current_user(request)
@@ -78,7 +78,11 @@ class FamilyMemberDetailView(APIView):
         if error:
             return error
         old_name = f'{member.first_name} {member.last_name}'
-        serializer = FamilyMemberSerializer(member, data=request.data, partial=True)
+        data = request.data
+        if not can_see_phone(member, user):
+            # Someone who cannot see a private number must not overwrite it or make it public.
+            data = {k: v for k, v in request.data.items() if k not in ('phone', 'phone_public')}
+        serializer = FamilyMemberSerializer(member, data=data, partial=True, context={'viewer': user})
         if serializer.is_valid():
             serializer.save()
             log_edit(member.tree, 'family_member', member.id, user, f'Updated member: {old_name}')

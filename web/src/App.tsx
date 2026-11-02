@@ -2,6 +2,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { ApiError } from './api'
 import Backdrop from './Backdrop'
+import CommunitiesPage from './CommunitiesPage'
+import CommunityPage from './CommunityPage'
 import LoginPage from './LoginPage'
 import ManagePage from './ManagePage'
 import ProfilePage from './ProfilePage'
@@ -29,6 +31,8 @@ export default function App() {
           <Route element={<Protected />}>
             <Route path="/" element={<TreesPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/communities" element={<CommunitiesPage />} />
+            <Route path="/communities/:communityId" element={<CommunityPage />} />
             <Route path="/trees/:treeId" element={<TreePage />} />
             <Route path="/trees/:treeId/manage" element={<ManagePage />} />
           </Route>

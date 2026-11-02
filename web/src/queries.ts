@@ -175,6 +175,8 @@ export interface MemberInput {
   birth_date: string
   birth_place: string
   photo_url: string
+  phone: string
+  phone_public: boolean
 }
 
 // Blank dates must be null for DRF's DateField; blank text fields are fine as ''.

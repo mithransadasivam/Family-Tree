@@ -170,6 +170,7 @@ export default function DetailPanel({
 
   const facts = [
     member.birth_date && `Born ${member.birth_date}${member.birth_place ? ` · ${member.birth_place}` : ''}`,
+    member.phone && `Phone ${member.phone} · ${member.phone_public ? 'public' : 'private'}`,
     member.death_date && `Died ${member.death_date}${member.death_place ? ` · ${member.death_place}` : ''}`,
   ].filter(Boolean)
 

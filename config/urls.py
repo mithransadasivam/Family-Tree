@@ -21,6 +21,7 @@ urlpatterns = [
     path('api/', include('family_codes.urls')),
     path('api/', include('edit_history.urls')),
     path('api/', include('join_requests.urls')),
+    path('api/', include('communities.urls')),
     # Must stay last: everything not claimed above (and not a real file WhiteNoise already
     # served) is a page of the website.
     re_path(r'^(?!api/|admin/|static/).*$', webapp_index),

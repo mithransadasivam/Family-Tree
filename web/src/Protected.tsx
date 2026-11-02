@@ -68,6 +68,9 @@ export default function Protected() {
               </button>
             </>
           )}
+          <Link to="/communities" className="nav-link" title="Communities">
+            <Users size={16} /> <span className="label">Communities</span>
+          </Link>
           <button
             className="ghost icon-btn"
             onClick={toggle}

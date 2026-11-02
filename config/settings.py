@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'family_codes',
     'edit_history',
     'join_requests',
+    'communities',
 ]
 
 MIDDLEWARE = [
@@ -85,6 +86,8 @@ REST_FRAMEWORK = {
     # Per-account cap on family-code attempts (redeeming / sending join requests).
     'DEFAULT_THROTTLE_RATES': {
         'code_attempts': '30/hour',
+        'community_search': '120/hour',
+        'community_find': '60/hour',
     },
 }
 

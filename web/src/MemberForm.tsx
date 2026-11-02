@@ -196,6 +196,8 @@ function EditForm({ treeId, member, onClose, onSaved }: Omit<Props, 'members' | 
     birth_date: member.birth_date ?? '',
     birth_place: member.birth_place,
     photo_url: member.photo_url,
+    phone: member.phone,
+    phone_public: member.phone_public,
   })
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setF((p) => ({ ...p, [k]: e.target.value }))
@@ -248,6 +250,36 @@ function EditForm({ treeId, member, onClose, onSaved }: Omit<Props, 'members' | 
           Photo link
           <input type="url" placeholder="https://…" value={f.photo_url} onChange={set('photo_url')} />
         </label>
+        <div className="field">
+          <span>Phone</span>
+          <div className="row wrap">
+            <input
+              className="grow"
+              type="tel"
+              maxLength={20}
+              value={f.phone}
+              onChange={set('phone')}
+              aria-label="Phone number"
+            />
+            <div className="seg" role="group" aria-label="Who can see this number">
+              {([true, false] as const).map((pub) => (
+                <button
+                  key={String(pub)}
+                  type="button"
+                  className={f.phone_public === pub ? 'on' : ''}
+                  aria-pressed={f.phone_public === pub}
+                  onClick={() => setF((p) => ({ ...p, phone_public: pub }))}
+                >
+                  {pub ? 'Public' : 'Private'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <span className="muted small hint">
+            Public: shown to the family, and to communities it is shared with. Private: only the family owner and this
+            person can see it.
+          </span>
+        </div>
         <p className="muted small">
           <Req />
           Required
