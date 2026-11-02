@@ -22,7 +22,9 @@ export default function Protected() {
   const qc = useQueryClient()
   const nav = useNavigate()
   // Create / Join belong to the families list. Inside a family they would only be in the way.
-  const onFamiliesPage = useLocation().pathname === '/'
+  const pathname = useLocation().pathname
+  const onFamiliesPage = pathname === '/'
+  const inCommunities = pathname.startsWith('/communities')
   const { theme, toggle } = useTheme()
   const [dialog, setDialog] = useState<'create' | 'join' | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -68,9 +70,15 @@ export default function Protected() {
               </button>
             </>
           )}
-          <Link to="/communities" className="nav-link" title="Communities">
-            <Users size={16} /> <span className="label">Communities</span>
-          </Link>
+          {inCommunities ? (
+            <Link to="/" className="nav-link" title="Your families">
+              <Users size={16} /> <span className="label">Families</span>
+            </Link>
+          ) : (
+            <Link to="/communities" className="nav-link" title="Communities">
+              <Users size={16} /> <span className="label">Communities</span>
+            </Link>
+          )}
           <button
             className="ghost icon-btn"
             onClick={toggle}
