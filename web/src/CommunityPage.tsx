@@ -12,7 +12,6 @@ import {
 import { Back, Mars, Phone, Search, Venus } from './Icons'
 
 type GenderFilter = '' | 'male' | 'female'
-type Living = '' | 'yes' | 'no'
 
 const PAGE = 50
 
@@ -30,7 +29,6 @@ function People({ id, hasFamilies }: { id: number; hasFamilies: boolean }) {
   const [gender, setGender] = useState<GenderFilter>('')
   const [ageMin, setAgeMin] = useState('')
   const [ageMax, setAgeMax] = useState('')
-  const [living, setLiving] = useState<Living>('')
   const [limit, setLimit] = useState(PAGE)
 
   const dName = useDebounced(name.trim())
@@ -41,17 +39,16 @@ function People({ id, hasFamilies }: { id: number; hasFamilies: boolean }) {
   if (gender) params.set('gender', gender)
   if (dMin) params.set('age_min', dMin)
   if (dMax) params.set('age_max', dMax)
-  if (living) params.set('living', living)
+  params.set('living', 'yes') // only people who are alive
   params.set('limit', String(limit))
   const people = useCommunityPeople(id, params.toString())
 
-  const filtered = Boolean(dName || gender || dMin || dMax || living)
+  const filtered = Boolean(dName || gender || dMin || dMax)
   const clear = () => {
     setName('')
     setGender('')
     setAgeMin('')
     setAgeMax('')
-    setLiving('')
     setLimit(PAGE)
   }
   // Any change to a filter starts the list from the top again.
@@ -121,28 +118,6 @@ function People({ id, hasFamilies }: { id: number; hasFamilies: boolean }) {
               />
             </div>
           </div>
-          <div className="field">
-            Status
-            <div className="seg" role="group" aria-label="Living or deceased">
-              {(
-                [
-                  ['', 'All'],
-                  ['yes', 'Living'],
-                  ['no', 'Deceased'],
-                ] as const
-              ).map(([v, label]) => (
-                <button
-                  key={v}
-                  type="button"
-                  className={living === v ? 'on' : ''}
-                  aria-pressed={living === v}
-                  onClick={() => change(setLiving)(v)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
           {filtered && (
             <button className="ghost" onClick={clear}>
               Clear filters
@@ -150,8 +125,8 @@ function People({ id, hasFamilies }: { id: number; hasFamilies: boolean }) {
           )}
         </div>
         <p className="muted small">
-          To search by one age, put the same number in both boxes. Age filters only include living people with a birth
-          date.
+          To search by one age, put the same number in both boxes. Only living people are listed, and age filters need a
+          birth date.
         </p>
       </div>
 
