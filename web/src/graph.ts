@@ -54,7 +54,10 @@ def(['Grandson', 'Granddaughter'], 'Grandchildren', 'Grandparents', 'Grandparent
 def(['Brother', 'Sister'], 'Siblings', 'Siblings', 'Sibling')
 def(['Step Brother', 'Step Sister'], 'Siblings', 'Siblings', 'Step-sibling')
 def(['Adopted Brother', 'Adopted Sister'], 'Siblings', 'Siblings', 'Adopted sibling')
-def(['Spouse', 'Husband', 'Wife', 'Partner', 'Fiance', 'Fiancee'], 'Spouse', 'Spouse', 'Partner')
+def(['Husband', 'Wife'], 'Spouse', 'Spouse', 'Husband / wife')
+def(['Spouse'], 'Spouse', 'Spouse', 'Spouse')
+def(['Partner'], 'Spouse', 'Spouse', 'Partner')
+def(['Fiance', 'Fiancee'], 'Spouse', 'Spouse', 'Fiance / fiancee')
 def(['Father-in-Law', 'Mother-in-Law'], 'In-laws', 'In-laws', 'Child-in-law')
 def(['Son-in-Law', 'Daughter-in-Law'], 'In-laws', 'In-laws', 'Parent-in-law')
 def(['Brother-in-Law', 'Sister-in-Law'], 'In-laws', 'In-laws', 'Sibling-in-law')
@@ -104,7 +107,8 @@ const GENDERED_INVERSE: Record<string, [string, string]> = {
   'Adopted sibling': ['Adopted Brother', 'Adopted Sister'],
   Grandchild: ['Grandson', 'Granddaughter'],
   Grandparent: ['Grandfather', 'Grandmother'],
-  Partner: ['Husband', 'Wife'],
+  'Husband / wife': ['Husband', 'Wife'],
+  'Fiance / fiancee': ['Fiance', 'Fiancee'],
   'Nephew / niece': ['Nephew', 'Niece'],
   Stepchild: ['Step Son', 'Step Daughter'],
   'Step-parent': ['Step Father', 'Step Mother'],
