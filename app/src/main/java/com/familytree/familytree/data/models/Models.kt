@@ -45,6 +45,7 @@ data class FamilyMember(
     val birth_place: String,
     val death_date: String?,
     val death_place: String,
+    val gender: String? = null,
     val created_at: String,
     val updated_at: String
 )

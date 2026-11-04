@@ -94,6 +94,8 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
     val repository = remember { AppRepository(context) }
     var member by remember { mutableStateOf<FamilyMember?>(null) }
     var relationships by remember { mutableStateOf<List<Relationship>>(emptyList()) }
+    // Every link in the tree (not just this member's), so a person's gender can be inferred from how others describe them.
+    var treeRelationships by remember { mutableStateOf<List<Relationship>>(emptyList()) }
     var relTypes by remember { mutableStateOf<List<RelationshipType>>(emptyList()) }
     var allMembers by remember { mutableStateOf<List<FamilyMember>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -159,6 +161,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
             member = memberResult.getOrNull()
             member?.let { m ->
                 val relsResult = repository.getRelationships(m.tree)
+                if (relsResult.isSuccess) treeRelationships = relsResult.getOrNull() ?: emptyList()
                 if (relsResult.isSuccess) relationships = relsResult.getOrNull()?.filter { it.member_1 == memberId || it.member_2 == memberId } ?: emptyList()
                 val membersResult = repository.getFamilyMembers(m.tree)
                 if (membersResult.isSuccess) allMembers = membersResult.getOrNull()?.filter { it.id != memberId } ?: emptyList()
@@ -268,6 +271,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                     if (relationships.isEmpty()) {
                         item { Text("No relationships yet", color = TextHint, fontSize = 13.sp) }
                     }
+                    val genders = inferGenders(treeRelationships, allMembers + listOfNotNull(member))
                     items(relationships) { rel ->
                         val otherId = if (rel.member_1 == memberId) rel.member_2 else rel.member_1
                         val other = allMembers.find { it.id == otherId }
@@ -283,7 +287,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                                 Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(other?.let { "${it.first_name} ${it.last_name}" } ?: "Unknown")
-                                    Text(rel.relationship_type_name, color = Primary, fontSize = 11.sp)
+                                    Text(relationshipLabelFor(rel, memberId, genders), color = Primary, fontSize = 11.sp)
                                 }
                                 IconButton(onClick = { openEditRelSheet(rel) }) {
                                     Icon(Icons.Default.Edit, contentDescription = "Edit relationship", tint = Primary)
@@ -532,6 +536,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                                         )
                                     )
                                     val relsResult = repository.getRelationships(m.tree)
+                                    if (relsResult.isSuccess) treeRelationships = relsResult.getOrNull() ?: emptyList()
                                     if (relsResult.isSuccess) relationships = relsResult.getOrNull()
                                         ?.filter { it.member_1 == memberId || it.member_2 == memberId }
                                         ?: emptyList()
@@ -668,6 +673,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                             if (result.isSuccess) {
                                 member?.let { m ->
                                     val relsResult = repository.getRelationships(m.tree)
+                                    if (relsResult.isSuccess) treeRelationships = relsResult.getOrNull() ?: emptyList()
                                     if (relsResult.isSuccess) relationships = relsResult.getOrNull()
                                         ?.filter { it.member_1 == memberId || it.member_2 == memberId }
                                         ?: emptyList()
