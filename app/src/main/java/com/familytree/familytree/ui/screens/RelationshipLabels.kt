@@ -114,3 +114,19 @@ fun relationshipLabelFor(
         null -> inverse
     }
 }
+
+/**
+ * (member_1, member_2) to save for a link edited from [selfId]'s page. The type says what member_1
+ * IS to member_2, so an edit keeps the stored order: [selfIsFirst] is whether the viewed member was
+ * member_1 when the link was opened. A new link always has the viewed member first.
+ */
+fun relationshipEndpoints(selfId: Int, otherId: Int, selfIsFirst: Boolean): Pair<Int, Int> =
+    if (selfIsFirst) selfId to otherId else otherId to selfId
+
+/** "[A] is the [term] of [B]" in stored order, so the sheet reads the same way the link is saved. */
+fun relationshipSentence(selfName: String?, otherName: String?, term: String?, selfIsFirst: Boolean): String {
+    val self = selfName ?: "..."
+    val other = otherName ?: "..."
+    val label = term ?: "..."
+    return if (selfIsFirst) "$self is the $label of $other" else "$other is the $label of $self"
+}

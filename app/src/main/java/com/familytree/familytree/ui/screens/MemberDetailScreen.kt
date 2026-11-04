@@ -106,6 +106,9 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
     var selectedTerm by remember { mutableStateOf<RelationshipTerm?>(null) }
     var collapsedCategories by remember { mutableStateOf<Set<RelationshipCategory>>(emptySet()) }
     var editingRelationshipId by remember { mutableStateOf<Int?>(null) }
+    // Which side of the stored link the viewed member is on. Only matters when editing: the type says
+    // what member_1 IS to member_2, so saving must keep the original order or the relationship flips.
+    var editingSelfIsFirst by remember { mutableStateOf(true) }
 
     var showEditSheet by remember { mutableStateOf(false) }
     var editFirstName by remember { mutableStateOf("") }
@@ -142,6 +145,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
         collapsedCategories = emptySet()
         selectedTerm = null
         editingRelationshipId = null
+        editingSelfIsFirst = true
         showAddRel = true
     }
 
@@ -152,6 +156,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
         collapsedCategories = emptySet()
         selectedTerm = findEnglishTerm(rel.relationship_type_name)
         editingRelationshipId = rel.id
+        editingSelfIsFirst = rel.member_1 == memberId
         showAddRel = true
     }
 
@@ -319,6 +324,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
             relSearchQuery = ""
             relLanguage = RelationshipLanguage.ENGLISH
             editingRelationshipId = null
+            editingSelfIsFirst = true
         }
 
         val visibleTerms = remember(relLanguage, relSearchQuery) {
@@ -351,7 +357,9 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "${member?.first_name} is the ${selectedTerm?.label ?: "..."} of ${selectedOther?.first_name ?: "..."}",
+                        text = relationshipSentence(
+                            member?.first_name, selectedOther?.first_name, selectedTerm?.label, editingSelfIsFirst
+                        ),
                         modifier = Modifier.padding(12.dp),
                         fontSize = 14.sp,
                         color = Color(0xFF2E5C51),
@@ -512,6 +520,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                                 return@Button
                             }
                             val relIdBeingEdited = editingRelationshipId
+                            val selfIsFirst = editingSelfIsFirst
                             scope.launch {
                                 member?.let { m ->
                                     // When editing, delete the old relationship first, then create the
@@ -527,11 +536,12 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                                             return@launch
                                         }
                                     }
+                                    val (first, second) = relationshipEndpoints(m.id, selectedMemberId, selfIsFirst)
                                     val createResult = repository.createRelationship(
                                         CreateRelationshipRequest(
                                             tree = m.tree,
-                                            member_1 = m.id,
-                                            member_2 = selectedMemberId,
+                                            member_1 = first,
+                                            member_2 = second,
                                             relationship_type = relType.id
                                         )
                                     )
