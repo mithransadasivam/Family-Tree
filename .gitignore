@@ -21,3 +21,8 @@ media/
 .externalNativeBuild
 .cxx
 local.properties
+
+# Android signing keys and release output - never commit
+*.jks
+*.keystore
+/app/release/
