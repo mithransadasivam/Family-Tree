@@ -25,6 +25,30 @@ class FamilyMemberSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('A person cannot be moved to a different family')
         return tree
 
+    def validate(self, attrs):
+        # `user` links a person to a sign-in account, and that account can read the person's
+        # private phone (see can_see_phone). So it is the owner's call: if anyone could set it,
+        # a member could link themselves to anyone and read their "private" number.
+        if 'user' in attrs:
+            viewer = self.context.get('viewer')
+            tree = attrs.get('tree') or (self.instance.tree if self.instance else None)
+            is_owner = viewer is not None and tree is not None and tree.owner_id == viewer.id
+            new_user = attrs['user']
+            current_id = self.instance.user_id if self.instance else None
+            unchanged = (new_user.id if new_user else None) == current_id
+            if not unchanged:
+                if not is_owner:
+                    if self.instance is None:
+                        # Creating (e.g. the web's undo-restore resends the old link): just
+                        # don't link anyone rather than failing the whole request.
+                        del attrs['user']
+                    else:
+                        raise serializers.ValidationError(
+                            {'user': 'Only the tree owner can link a person to an account'})
+                elif new_user is not None and not new_user.tree_memberships.filter(tree=tree).exists():
+                    raise serializers.ValidationError({'user': 'That account is not in this family'})
+        return attrs
+
     class Meta:
         model = FamilyMember
         fields = [
