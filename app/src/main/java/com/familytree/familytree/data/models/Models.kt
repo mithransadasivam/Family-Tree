@@ -102,6 +102,14 @@ data class CreateRelationshipRequest(
     val relationship_type: Int
 )
 
+// Body of PATCH relationships/{id}/: an edit changes the existing row in place (same id, same
+// creator, validated and saved atomically) instead of deleting it and creating a replacement.
+data class UpdateRelationshipRequest(
+    val member_1: Int,
+    val member_2: Int,
+    val relationship_type: Int
+)
+
 data class FamilyCodeRequest(
     val tree_id: Int
 )

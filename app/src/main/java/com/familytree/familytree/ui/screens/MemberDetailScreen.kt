@@ -75,6 +75,7 @@ import com.familytree.familytree.data.models.CreateRelationshipRequest
 import com.familytree.familytree.data.models.FamilyMember
 import com.familytree.familytree.data.models.Relationship
 import com.familytree.familytree.data.models.RelationshipType
+import com.familytree.familytree.data.models.UpdateRelationshipRequest
 import com.familytree.familytree.data.repository.AppRepository
 import com.familytree.familytree.ui.components.BannerAd
 import com.familytree.familytree.ui.theme.Primary
@@ -523,28 +524,30 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                             val selfIsFirst = editingSelfIsFirst
                             scope.launch {
                                 member?.let { m ->
-                                    // When editing, delete the old relationship first, then create the
-                                    // replacement. If the delete fails, bail out before touching
-                                    // anything so the original relationship is left intact. If the
-                                    // delete succeeds but the create fails, the list is still
-                                    // refreshed and the user is told - so the UI never quietly shows
-                                    // stale data as if the edit had worked.
-                                    if (relIdBeingEdited != null) {
-                                        val deleteResult = repository.deleteRelationship(relIdBeingEdited)
-                                        if (!deleteResult.isSuccess) {
-                                            snackbarHostState.showSnackbar(deleteResult.exceptionOrNull()?.message ?: "Failed to update relationship")
-                                            return@launch
-                                        }
-                                    }
                                     val (first, second) = relationshipEndpoints(m.id, selectedMemberId, selfIsFirst)
-                                    val createResult = repository.createRelationship(
-                                        CreateRelationshipRequest(
-                                            tree = m.tree,
-                                            member_1 = first,
-                                            member_2 = second,
-                                            relationship_type = relType.id
+                                    // An edit is ONE atomic PATCH on the existing relationship: if the
+                                    // server rejects it (already connected, would loop, ...) the original
+                                    // link is untouched. It used to delete first and then create, so a
+                                    // rejected edit silently destroyed the relationship.
+                                    val createResult = if (relIdBeingEdited != null) {
+                                        repository.updateRelationship(
+                                            relIdBeingEdited,
+                                            UpdateRelationshipRequest(
+                                                member_1 = first,
+                                                member_2 = second,
+                                                relationship_type = relType.id
+                                            )
                                         )
-                                    )
+                                    } else {
+                                        repository.createRelationship(
+                                            CreateRelationshipRequest(
+                                                tree = m.tree,
+                                                member_1 = first,
+                                                member_2 = second,
+                                                relationship_type = relType.id
+                                            )
+                                        )
+                                    }
                                     val relsResult = repository.getRelationships(m.tree)
                                     if (relsResult.isSuccess) treeRelationships = relsResult.getOrNull() ?: emptyList()
                                     if (relsResult.isSuccess) relationships = relsResult.getOrNull()

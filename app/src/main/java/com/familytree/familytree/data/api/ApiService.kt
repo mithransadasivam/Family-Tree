@@ -51,6 +51,9 @@ interface ApiService {
     @POST("relationships/")
     suspend fun createRelationship(@Body body: CreateRelationshipRequest): Response<Relationship>
 
+    @PATCH("relationships/{id}/")
+    suspend fun updateRelationship(@Path("id") id: Int, @Body body: UpdateRelationshipRequest): Response<Relationship>
+
     @DELETE("relationships/{id}/")
     suspend fun deleteRelationship(@Path("id") id: Int): Response<Unit>
 

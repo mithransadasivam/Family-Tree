@@ -127,6 +127,9 @@ class AppRepository(context: Context) {
     suspend fun createRelationship(request: CreateRelationshipRequest): Result<Relationship> =
         apiCall { api.createRelationship(request) }
 
+    suspend fun updateRelationship(relId: Int, request: UpdateRelationshipRequest): Result<Relationship> =
+        apiCall { api.updateRelationship(relId, request) }
+
     suspend fun deleteRelationship(relId: Int): Result<Unit> = apiCallUnit { api.deleteRelationship(relId) }
 
     suspend fun getRelationshipTypes(): Result<List<RelationshipType>> = apiCall { api.getRelationshipTypes() }
