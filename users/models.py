@@ -1,5 +1,5 @@
 ﻿from django.db import models
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 
 
 class UserManager(BaseUserManager):
@@ -9,8 +9,19 @@ class UserManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
+    def create_superuser(self, email, google_id, password=None, **extra_fields):
+        """For `manage.py createsuperuser` and tests. Ordinary users only ever come from Google sign-in."""
+        user = self.model(
+            email=email, google_id=google_id, is_staff=True, is_superuser=True, **extra_fields
+        )
+        user.set_password(password)  # None gives an unusable password, like create_user
+        user.save(using=self._db)
+        return user
 
-class User(AbstractBaseUser):
+
+# PermissionsMixin adds is_superuser, groups and user_permissions, which Django's admin needs.
+# Nobody is staff or a superuser by default: it is granted by hand (see `manage.py makeadmin`).
+class User(AbstractBaseUser, PermissionsMixin):
     google_id = models.CharField(max_length=255, unique=True)
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=100, blank=True)
@@ -19,6 +30,7 @@ class User(AbstractBaseUser):
     address = models.TextField(blank=True)
     photo_url = models.URLField(max_length=500, blank=True)
     is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False, help_text='Can sign in to the Django admin site.')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

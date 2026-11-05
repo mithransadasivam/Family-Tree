@@ -13,3 +13,6 @@ EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
 REST_FRAMEWORK = {**REST_FRAMEWORK, 'DEFAULT_THROTTLE_RATES': {
     'code_attempts': '1000/hour', 'community_search': '1000/hour', 'community_find': '1000/hour',
 }}
+
+# Real password hashing is deliberately slow; tests make many users.
+PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']

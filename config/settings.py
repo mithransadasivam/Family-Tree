@@ -128,6 +128,14 @@ else:
 
 # httpOnly auth cookies for the web client. If the web app and API are on different sites,
 # set AUTH_COOKIE_SAMESITE=None (requires HTTPS); a same-origin proxy avoids that.
+# Railway terminates HTTPS and forwards plain HTTP, saying so in X-Forwarded-Proto. Without this
+# Django thinks every request is insecure, and the admin login form (a POST from an https origin)
+# is rejected by the CSRF check.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+# The admin uses a normal Django session: keep its cookies off plain HTTP in production.
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+
 AUTH_COOKIE_ACCESS = 'kinship_access'
 AUTH_COOKIE_REFRESH = 'kinship_refresh'
 AUTH_COOKIE_SECURE = not DEBUG
