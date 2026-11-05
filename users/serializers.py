@@ -34,11 +34,13 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'email', 'first_name', 'last_name',
             'phone', 'address', 'photo_url', 'created_at', 'profile',
-            'has_avatar', 'avatar_version'
+            'has_avatar', 'avatar_version', 'is_staff', 'is_superuser'
         ]
         # email is the account's identity and photo_url is refreshed from Google at every sign-in,
-        # so neither can be changed through the profile endpoint.
-        read_only_fields = ['id', 'email', 'photo_url', 'created_at']
+        # so neither can be changed through the profile endpoint. is_staff / is_superuser are shown
+        # (so the website knows whether to offer the staff pages) but can NEVER be set through the
+        # API; PublicUserSerializer, used for everyone else, does not include them at all.
+        read_only_fields = ['id', 'email', 'photo_url', 'created_at', 'is_staff', 'is_superuser']
 
 
 class PublicUserSerializer(UserSerializer):
