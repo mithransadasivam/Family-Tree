@@ -4,7 +4,8 @@ import DetailPanel from './DetailPanel'
 import { Back, Gear, Plus, Poster, Search } from './Icons'
 import MemberForm from './MemberForm'
 import PosterDialog from './PosterDialog'
-import { useMembers, useRelationships, useRestore, useTrees, type MemberSnapshot } from './queries'
+import { isTreeOwner } from './permissions'
+import { useMe, useMembers, useRelationships, useRestore, useTrees, type MemberSnapshot } from './queries'
 import Rings from './Rings'
 import TreeView from './TreeView'
 import UndoBar, { type Undoable } from './UndoBar'
@@ -14,6 +15,10 @@ import { fullName, type Member, type Relationship } from './types'
 export default function TreePage() {
   const treeId = Number(useParams().treeId)
   const trees = useTrees()
+  const me = useMe()
+  const tree = trees.data?.find((t) => t.id === treeId)
+  // Every member can add and edit; only the tree owner can delete people and relationships.
+  const canDelete = isTreeOwner(tree, me.data)
   const members = useMembers(treeId)
   const rels = useRelationships(treeId)
 
@@ -58,8 +63,12 @@ export default function TreePage() {
     setFocus((f) => ({ id, n: (f?.n ?? 0) + 1 }))
   }
 
-  const offerUndo = (message: string, run: () => Promise<void>) =>
+  // Undo only exists for deletes, and only the owner can delete. Even if a delete somehow
+  // completed for someone else, never put a restore button in front of a non-owner.
+  const offerUndo = (message: string, run: () => Promise<void>) => {
+    if (!canDelete) return
     setUndo((u) => ({ key: (u?.key ?? 0) + 1, message, run }))
+  }
 
   const onDeleted = (snapshot: MemberSnapshot) => {
     setSelectedId(null)
@@ -71,7 +80,6 @@ export default function TreePage() {
   const onRelationshipRemoved = (rel: Relationship, description: string) =>
     offerUndo(description, () => restore.relationship(rel))
 
-  const tree = trees.data?.find((t) => t.id === treeId)
   const loading = members.isLoading || rels.isLoading
   const error = members.error ?? rels.error
 
@@ -186,6 +194,7 @@ export default function TreePage() {
             member={selected}
             members={memberList}
             relationships={rels.data ?? []}
+            canDelete={canDelete}
             onEdit={() => setEditing(selected)}
             onDeleted={onDeleted}
             onRelationshipRemoved={onRelationshipRemoved}

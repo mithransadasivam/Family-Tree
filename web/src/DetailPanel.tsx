@@ -18,6 +18,8 @@ interface Props {
   member: Member
   members: Member[]
   relationships: Relationship[]
+  /** Only the tree owner may delete people and relationships; everyone else gets no delete actions. */
+  canDelete: boolean
   onEdit: () => void
   /** Called after the person was deleted, with what is needed to bring them back. */
   onDeleted: (snapshot: MemberSnapshot) => void
@@ -118,6 +120,7 @@ export default function DetailPanel({
   member,
   members,
   relationships,
+  canDelete,
   onEdit,
   onDeleted,
   onRelationshipRemoved,
@@ -225,31 +228,33 @@ export default function DetailPanel({
         <button className="ghost" onClick={onEdit}>
           <Edit size={15} /> Edit
         </button>
-        <button
-          className="danger"
-          disabled={del.isPending || isRoot}
-          title={isRoot ? `${member.first_name} has children in the family, so they can't be deleted` : undefined}
-          onClick={() => {
-            // Remember the person and everything linking them to others, so Undo can restore it.
-            const snapshot: MemberSnapshot = {
-              member,
-              relationships: relationships.filter((r) => r.member_1 === member.id || r.member_2 === member.id),
-            }
-            // mutateAsync, not mutate(..., {onSuccess}): this panel unmounts the moment the person
-            // leaves the list, and callbacks passed to mutate() are dropped once that happens.
-            // Failures show through `del.error`.
-            del.mutateAsync(member.id).then(() => onDeleted(snapshot), () => undefined)
-          }}
-        >
-          <Trash size={15} /> Delete
-        </button>
+        {canDelete && (
+          <button
+            className="danger"
+            disabled={del.isPending || isRoot}
+            title={isRoot ? `${member.first_name} has children in the family, so they can't be deleted` : undefined}
+            onClick={() => {
+              // Remember the person and everything linking them to others, so Undo can restore it.
+              const snapshot: MemberSnapshot = {
+                member,
+                relationships: relationships.filter((r) => r.member_1 === member.id || r.member_2 === member.id),
+              }
+              // mutateAsync, not mutate(..., {onSuccess}): this panel unmounts the moment the person
+              // leaves the list, and callbacks passed to mutate() are dropped once that happens.
+              // Failures show through `del.error`.
+              del.mutateAsync(member.id).then(() => onDeleted(snapshot), () => undefined)
+            }}
+          >
+            <Trash size={15} /> Delete
+          </button>
+        )}
       </div>
-      {isRoot && (
+      {canDelete && isRoot && (
         <p className="muted small" style={{ textAlign: 'center', marginTop: 10 }}>
           {member.first_name} has children in the family, so they can&apos;t be deleted. Remove their children first.
         </p>
       )}
-      {del.error && (
+      {canDelete && del.error && (
         <p role="alert" className="error" style={{ marginTop: 10, textAlign: 'center' }}>
           {del.error.message}
         </p>
@@ -306,19 +311,21 @@ export default function DetailPanel({
                   >
                     <Edit size={14} />
                   </button>
-                  <button
-                    className="ghost icon-btn mini x"
-                    aria-label={`Remove relationship with ${o ? fullName(o) : other}`}
-                    disabled={delRel.isPending}
-                    onClick={() =>
-                      delRel.mutateAsync(rel.id).then(
-                        () => onRelationshipRemoved(rel, `Removed ${label.toLowerCase()} link with ${o ? fullName(o) : 'someone'}`),
-                        () => undefined,
-                      )
-                    }
-                  >
-                    <Close size={14} />
-                  </button>
+                  {canDelete && (
+                    <button
+                      className="ghost icon-btn mini x"
+                      aria-label={`Remove relationship with ${o ? fullName(o) : other}`}
+                      disabled={delRel.isPending}
+                      onClick={() =>
+                        delRel.mutateAsync(rel.id).then(
+                          () => onRelationshipRemoved(rel, `Removed ${label.toLowerCase()} link with ${o ? fullName(o) : 'someone'}`),
+                          () => undefined,
+                        )
+                      }
+                    >
+                      <Close size={14} />
+                    </button>
+                  )}
                 </li>
               )
             })}

@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Back, Check, Copy, Plus } from './Icons'
+import { isTreeOwner } from './permissions'
 import {
   useDecideJoinRequest,
   useEditHistory,
@@ -42,7 +43,7 @@ export default function ManagePage() {
   const trees = useTrees()
   const me = useMe()
   const tree = trees.data?.find((t) => t.id === treeId)
-  const isOwner = !!tree && !!me.data && tree.owner.id === me.data.id
+  const isOwner = isTreeOwner(tree, me.data)
 
   const settings = useUpdateTreeSettings(treeId)
   const genCode = useGenerateCode(treeId)

@@ -100,6 +100,8 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
     var relTypes by remember { mutableStateOf<List<RelationshipType>>(emptyList()) }
     var allMembers by remember { mutableStateOf<List<FamilyMember>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    // Every member can add and edit; only the tree owner sees the delete actions.
+    var canDelete by remember { mutableStateOf(false) }
     var showAddRel by remember { mutableStateOf(false) }
     var selectedMemberId by remember { mutableStateOf(0) }
     var relLanguage by remember { mutableStateOf(RelationshipLanguage.ENGLISH) }
@@ -172,6 +174,10 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                 if (relsResult.isSuccess) relationships = relsResult.getOrNull()?.filter { it.member_1 == memberId || it.member_2 == memberId } ?: emptyList()
                 val membersResult = repository.getFamilyMembers(m.tree)
                 if (membersResult.isSuccess) allMembers = membersResult.getOrNull()?.filter { it.id != memberId } ?: emptyList()
+                // Only the tree owner can delete; if either lookup fails the delete actions stay hidden.
+                val meId = repository.getMe().getOrNull()?.id
+                val ownerId = repository.getFamilyTree(m.tree).getOrNull()?.owner?.id
+                canDelete = canDeleteInTree(meId, ownerId)
             }
         }
         val typesResult = repository.getRelationshipTypes()
@@ -193,8 +199,10 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                     IconButton(onClick = { member?.let { openEditSheet(it) } }) {
                         Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = Color.White)
                     }
-                    IconButton(onClick = { showDeleteMemberConfirm = true }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = Color.White)
+                    if (canDelete) {
+                        IconButton(onClick = { showDeleteMemberConfirm = true }) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = Color.White)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Primary)
@@ -299,8 +307,10 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                                 IconButton(onClick = { openEditRelSheet(rel) }) {
                                     Icon(Icons.Default.Edit, contentDescription = "Edit relationship", tint = Primary)
                                 }
-                                IconButton(onClick = { relationshipPendingDelete = rel }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete relationship", tint = Color.Red.copy(alpha = 0.7f))
+                                if (canDelete) {
+                                    IconButton(onClick = { relationshipPendingDelete = rel }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete relationship", tint = Color.Red.copy(alpha = 0.7f))
+                                    }
                                 }
                             }
                         }
