@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models.functions import Greatest, Least
 from family_trees.models import FamilyTree
 from family_members.models import FamilyMember
 from users.models import User
@@ -46,6 +47,18 @@ class Relationship(models.Model):
 
     class Meta:
         db_table = 'relationships'
+        constraints = [
+            # Two people can have only ONE relationship between them, whichever way round it is
+            # stored (A→B and B→A are the same pair). relationships/rules.py checks this too, but
+            # that check can be raced or bypassed; the database is the last line of defence.
+            # Needs MySQL 8.0.13+ (functional index) or SQLite; Django builds it for either.
+            models.UniqueConstraint(
+                'tree',
+                Least('member_1', 'member_2'),
+                Greatest('member_1', 'member_2'),
+                name='relationships_one_per_pair',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.member_1} → {self.relationship_type} → {self.member_2}'

@@ -1,4 +1,4 @@
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -8,6 +8,15 @@ from family_trees.models import FamilyTree, TreeMember
 from users.models import User
 from edit_history.utils import log_edit
 from .rules import check_relationship
+
+
+def PAIR_TAKEN_RESPONSE():
+    """The database's one-link-per-pair constraint fired (rules.py normally catches this first)."""
+    return Response(
+        {'error': 'These two people are already connected. A pair can only have one relationship, '
+                  'so edit or remove the existing one first.'},
+        status=status.HTTP_400_BAD_REQUEST,
+    )
 
 
 def lock_tree(tree_id):
@@ -56,7 +65,11 @@ class RelationshipListView(APIView):
                 )
                 if problem:
                     return Response({'error': problem}, status=status.HTTP_400_BAD_REQUEST)
-                rel = serializer.save(created_by=user)
+                try:
+                    with transaction.atomic():
+                        rel = serializer.save(created_by=user)
+                except IntegrityError:
+                    return PAIR_TAKEN_RESPONSE()
                 log_edit(tree, 'relationship', rel.id, user, f'Added relationship')
             return Response(RelationshipSerializer(rel).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -98,7 +111,11 @@ class RelationshipDetailView(APIView):
             if problem:
                 return Response({'error': problem}, status=status.HTTP_400_BAD_REQUEST)
 
-            rel = serializer.save()
+            try:
+                with transaction.atomic():
+                    rel = serializer.save()
+            except IntegrityError:
+                return PAIR_TAKEN_RESPONSE()
             log_edit(tree, 'relationship', rel.id, user, 'Updated relationship')
         return Response(RelationshipSerializer(rel).data)
 

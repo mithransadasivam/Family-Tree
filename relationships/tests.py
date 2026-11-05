@@ -1,8 +1,9 @@
 from unittest import mock
 
-from django.db import connection
+from django.db import IntegrityError, connection, transaction
+from django.db.migrations.executor import MigrationExecutor
 from django.db.models.query import QuerySet
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 
 from config.testing import client_for, join, make_tree, make_user
 from family_members.models import FamilyMember
@@ -138,3 +139,91 @@ class RelationshipEditTests(TestCase):
         res = client_for(outsider).patch(
             self.url(), {'relationship_type': self.brother.id}, format='json')
         self.assertEqual(res.status_code, 403)
+
+
+class OnePairOneRelationshipConstraintTests(TestCase):
+    """C7 follow-up: the database itself refuses a second link between the same two people, in
+    either direction, so even a missed lock or a direct write cannot create one."""
+
+    def setUp(self):
+        self.user = make_user('owner')
+        self.tree = make_tree(self.user)
+        mk = lambda n, t=None: FamilyMember.objects.create(tree=t or self.tree, first_name=n, created_by=self.user)
+        self.a, self.b, self.c = mk('A'), mk('B'), mk('C')
+        self.father = RelationshipType.objects.create(type_name='Father', category='biological')
+        self.brother = RelationshipType.objects.create(type_name='Brother', category='biological')
+        Relationship.objects.create(
+            tree=self.tree, member_1=self.a, member_2=self.b, relationship_type=self.father)
+
+    def make(self, m1, m2, tree=None, rtype=None):
+        return Relationship.objects.create(
+            tree=tree or self.tree, member_1=m1, member_2=m2, relationship_type=rtype or self.brother)
+
+    def test_same_direction_duplicate_is_refused(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            self.make(self.a, self.b)
+
+    def test_reverse_direction_duplicate_is_refused(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            self.make(self.b, self.a)
+
+    def test_different_pairs_are_fine(self):
+        self.make(self.a, self.c)
+        self.make(self.c, self.b)
+        self.assertEqual(Relationship.objects.count(), 3)
+
+    def test_an_edit_that_would_duplicate_a_pair_is_refused(self):
+        other = self.make(self.a, self.c)
+        other.member_2 = self.b
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            other.save()
+
+    def test_api_turns_a_constraint_hit_into_a_clean_400_not_a_500(self):
+        # Simulate the application-level check missing a duplicate (e.g. a lost race).
+        client = client_for(self.user)
+        with mock.patch.object(rel_views, 'check_relationship', return_value=None):
+            res = client.post('/api/relationships/', {
+                'tree': self.tree.id, 'member_1': self.b.id, 'member_2': self.a.id,
+                'relationship_type': self.brother.id}, format='json')
+            self.assertEqual(res.status_code, 400, res.content)
+            self.assertIn('already connected', res.json()['error'])
+            mine = self.make(self.a, self.c)
+            res = client.patch(f'/api/relationships/{mine.id}/', {'member_2': self.b.id}, format='json')
+            self.assertEqual(res.status_code, 400, res.content)
+        self.assertEqual(Relationship.objects.count(), 2)
+
+
+class UniquePairMigrationTests(TransactionTestCase):
+    """The migration must apply on top of existing (duplicate-free) data and be reversible."""
+
+    app = 'relationships'
+    before = [('relationships', '0001_initial')]
+
+    def test_migration_applies_to_existing_rows_and_reverses(self):
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.before)
+        old = executor.loader.project_state(self.before).apps
+        # Only Relationship comes from the OLD schema state (no constraint yet); the people and
+        # tree are ordinary rows made with the real models.
+        Rel = old.get_model('relationships', 'Relationship')
+        u = make_user('migrator')
+        t = make_tree(u)
+        a, b, c = (FamilyMember.objects.create(tree=t, first_name=n, created_by=u) for n in 'ABC')
+        rt = RelationshipType.objects.create(type_name='Brother', category='biological')
+        Rel.objects.create(tree_id=t.id, member_1_id=a.id, member_2_id=b.id, relationship_type_id=rt.id)
+        Rel.objects.create(tree_id=t.id, member_1_id=c.id, member_2_id=a.id, relationship_type_id=rt.id)
+
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes('relationships'))
+        self.assertEqual(Relationship.objects.count(), 2)  # nothing lost
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Relationship.objects.create(
+                tree_id=t.id, member_1_id=b.id, member_2_id=a.id, relationship_type_id=rt.id)
+
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.before)  # reversible
+        with transaction.atomic():
+            Rel.objects.create(tree_id=t.id, member_1_id=b.id, member_2_id=a.id, relationship_type_id=rt.id)  # allowed again
+        executor = MigrationExecutor(connection)
+        Rel.objects.filter(member_1_id=b.id, member_2_id=a.id).delete()  # leave the DB clean for later tests
+        executor.migrate(executor.loader.graph.leaf_nodes('relationships'))

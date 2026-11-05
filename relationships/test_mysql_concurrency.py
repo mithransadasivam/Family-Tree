@@ -73,7 +73,17 @@ def no_locks():
 
 
 def slow_check():
-    return mock.patch.object(rel_views, 'check_relationship', linger(rel_views.check_relationship))
+    return mock.patch.object(rel_views, "check_relationship", linger(rel_views.check_relationship))
+
+
+CONSTRAINT_HIT = 599
+
+
+def constraint_hits_visible():
+    """The one-link-per-pair DB constraint (see migration 0002) normally turns a lost race into an
+    ordinary 400. Reaching it means the lock failed to keep requests apart, so surface it as 599."""
+    from rest_framework.response import Response
+    return mock.patch.object(rel_views, "PAIR_TAKEN_RESPONSE", lambda: Response({"error": "constraint"}, status=CONSTRAINT_HIT))
 
 
 def slow_join_save():
@@ -106,7 +116,7 @@ class MySQLRowLockTests(TransactionTestCase):
 
     def test_c7_simultaneous_relationship_writes_keep_one_link_per_pair(self):
         tree, jobs = self.relationship_jobs()
-        with slow_check():
+        with slow_check(), constraint_hits_visible():
             results = run_together(jobs)
         self.assertEqual(statuses(results), [201, 400, 400, 400, 400, 400], results)
         self.assertEqual(Relationship.objects.filter(tree=tree).count(), 1)
@@ -114,9 +124,11 @@ class MySQLRowLockTests(TransactionTestCase):
     def test_c7_control_without_locks_the_race_is_real(self):
         for _ in range(CONTROL_ROUNDS):
             tree, jobs = self.relationship_jobs()
-            with no_locks(), slow_check():
-                run_together(jobs)
-            if Relationship.objects.filter(tree=tree).count() > 1:
+            with no_locks(), slow_check(), constraint_hits_visible():
+                results = run_together(jobs)
+            # With the DB constraint in place the second writer is stopped there; either way two
+            # requests passed the application check at once, which is the race.
+            if CONSTRAINT_HIT in statuses(results) or Relationship.objects.filter(tree=tree).count() > 1:
                 return
         raise SkipTest('race not reproduced without locks: the locked test is not conclusive')
 
