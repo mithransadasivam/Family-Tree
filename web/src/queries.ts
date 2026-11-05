@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ENDPOINTS, json } from './api'
 import type {
   Gender,
@@ -8,6 +8,8 @@ import type {
   Member,
   Relationship,
   RelationshipType,
+  StaffTreeDetail,
+  StaffTreeList,
   Tree,
   User,
 } from './types'
@@ -135,6 +137,21 @@ export function useRemoveTree(treeId: number) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['trees'] }),
   })
 }
+
+/** Superuser-only: every tree in the system (the server refuses anyone else with 403). */
+export const useStaffTrees = (q: string, offset: number, limit: number) =>
+  useQuery({
+    queryKey: ['staff-trees', q, offset, limit],
+    queryFn: () => api<StaffTreeList>(ENDPOINTS.staffTrees(q, offset, limit)),
+    placeholderData: keepPreviousData,
+  })
+
+/** Superuser-only: one tree's people and relationships, read-only. */
+export const useStaffTree = (treeId: number) =>
+  useQuery({
+    queryKey: ['staff-tree', treeId],
+    queryFn: () => api<StaffTreeDetail>(ENDPOINTS.staffTree(treeId)),
+  })
 
 export const useTrees = () =>
   useQuery({ queryKey: ['trees'], queryFn: () => api<Tree[]>(ENDPOINTS.trees) })

@@ -20,6 +20,8 @@ interface Props {
   relationships: Relationship[]
   /** Only the tree owner may delete people and relationships; everyone else gets no delete actions. */
   canDelete: boolean
+  /** Look but don't touch (the superuser's staff view): no Edit, no relationship editing, no Connect. */
+  readOnly?: boolean
   onEdit: () => void
   /** Called after the person was deleted, with what is needed to bring them back. */
   onDeleted: (snapshot: MemberSnapshot) => void
@@ -121,6 +123,7 @@ export default function DetailPanel({
   members,
   relationships,
   canDelete,
+  readOnly = false,
   onEdit,
   onDeleted,
   onRelationshipRemoved,
@@ -225,9 +228,11 @@ export default function DetailPanel({
       </div>
 
       <div className="actions">
-        <button className="ghost" onClick={onEdit}>
-          <Edit size={15} /> Edit
-        </button>
+        {!readOnly && (
+          <button className="ghost" onClick={onEdit}>
+            <Edit size={15} /> Edit
+          </button>
+        )}
         {canDelete && (
           <button
             className="danger"
@@ -260,7 +265,7 @@ export default function DetailPanel({
         </p>
       )}
 
-      {grouped.size > 0 && !genders.has(member.id) && member.gender !== 'other' && (
+      {!readOnly && grouped.size > 0 && !genders.has(member.id) && member.gender !== 'other' && (
         <p className="muted small" style={{ textAlign: 'center', marginTop: 10 }}>
           Gender not set. Choose it in Edit so relationships with {member.first_name} read correctly (Son/Daughter,
           Father/Mother...).
@@ -270,7 +275,9 @@ export default function DetailPanel({
       {grouped.size === 0 && (
         <>
           <h4>Family</h4>
-          <p className="muted">No relationships yet. Connect {member.first_name} below.</p>
+          <p className="muted">
+            {readOnly ? 'No relationships recorded.' : `No relationships yet. Connect ${member.first_name} below.`}
+          </p>
         </>
       )}
       {GROUP_ORDER.filter((g) => grouped.has(g)).map((g) => (
@@ -304,13 +311,15 @@ export default function DetailPanel({
                     </button>
                     <span>{label}</span>
                   </div>
-                  <button
-                    className="ghost icon-btn mini x"
-                    aria-label={`Edit relationship with ${o ? fullName(o) : other}`}
-                    onClick={() => setEditingRel(rel.id)}
-                  >
-                    <Edit size={14} />
-                  </button>
+                  {!readOnly && (
+                    <button
+                      className="ghost icon-btn mini x"
+                      aria-label={`Edit relationship with ${o ? fullName(o) : other}`}
+                      onClick={() => setEditingRel(rel.id)}
+                    >
+                      <Edit size={14} />
+                    </button>
+                  )}
                   {canDelete && (
                     <button
                       className="ghost icon-btn mini x"
@@ -333,6 +342,8 @@ export default function DetailPanel({
         </section>
       ))}
 
+      {!readOnly && (
+      <>
       <h4>Connect someone</h4>
       {candidates.length === 0 ? (
         <p className="muted">
@@ -372,6 +383,8 @@ export default function DetailPanel({
         <p role="alert" className="error" style={{ marginTop: 8 }}>
           {addRel.error.message}
         </p>
+      )}
+      </>
       )}
       {delRel.error && (
         <p role="alert" className="error" style={{ marginTop: 8 }}>

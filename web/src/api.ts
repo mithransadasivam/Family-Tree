@@ -16,6 +16,9 @@ export const ENDPOINTS = {
   communityTrees: (id: number) => `/api/communities/${id}/trees/`,
   communityTree: (id: number, treeId: number) => `/api/communities/${id}/trees/${treeId}/`,
   communityPeople: (id: number, query: string) => `/api/communities/${id}/people/?${query}`,
+  staffTrees: (q: string, offset: number, limit: number) =>
+    `/api/staff/trees/?q=${encodeURIComponent(q)}&offset=${offset}&limit=${limit}`,
+  staffTree: (id: number) => `/api/staff/trees/${id}/`,
   trees: '/api/family-trees/',
   tree: (id: number) => `/api/family-trees/${id}/`,
   leaveTree: (id: number) => `/api/family-trees/${id}/leave/`,

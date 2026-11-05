@@ -9,6 +9,9 @@ import LoginPage from './LoginPage'
 import ManagePage from './ManagePage'
 import ProfilePage from './ProfilePage'
 import Protected from './Protected'
+import RequireSuperuser from './RequireSuperuser'
+import StaffTreePage from './StaffTreePage'
+import StaffTreesPage from './StaffTreesPage'
 import TreePage from './TreePage'
 import TreesPage from './TreesPage'
 
@@ -22,23 +25,35 @@ const queryClient = new QueryClient({
   },
 })
 
+/** The website's pages. (Staff pages live under /staff/ because Django's own admin site owns the other address.) */
+export function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route element={<Protected />}>
+        <Route path="/" element={<TreesPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/approve/:kind/:requestId" element={<ApprovePage />} />
+        <Route path="/communities" element={<CommunitiesPage />} />
+        <Route path="/communities/:communityId" element={<CommunityPage />} />
+        <Route path="/trees/:treeId" element={<TreePage />} />
+        <Route path="/trees/:treeId/manage" element={<ManagePage />} />
+        {/* Superusers only: read-only look at every family (the server enforces it too). */}
+        <Route element={<RequireSuperuser />}>
+          <Route path="/staff/trees" element={<StaffTreesPage />} />
+          <Route path="/staff/trees/:treeId" element={<StaffTreePage />} />
+        </Route>
+      </Route>
+    </Routes>
+  )
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <Backdrop />
       <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route element={<Protected />}>
-            <Route path="/" element={<TreesPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/approve/:kind/:requestId" element={<ApprovePage />} />
-            <Route path="/communities" element={<CommunitiesPage />} />
-            <Route path="/communities/:communityId" element={<CommunityPage />} />
-            <Route path="/trees/:treeId" element={<TreePage />} />
-            <Route path="/trees/:treeId/manage" element={<ManagePage />} />
-          </Route>
-        </Routes>
+        <AppRoutes />
       </BrowserRouter>
     </QueryClientProvider>
   )

@@ -12,6 +12,37 @@ export interface User {
   /** Changes with every upload; used to bust the browser cache. */
   avatar_version?: string | null
   created_at?: string
+  /** Only sent for your own account (/users/me/). The server enforces access; this just shows the staff link. */
+  is_staff?: boolean
+  is_superuser?: boolean
+}
+
+/** A tree as the superuser-only /api/staff/trees/ endpoints show it. */
+export interface StaffTree {
+  id: number
+  tree_name: string
+  description: string
+  owner: User
+  /** Deleted trees are hidden from everyone else but still listed here, flagged. */
+  is_active: boolean
+  approval_required: boolean
+  /** Accounts that belong to the tree. */
+  account_count: number
+  /** People drawn in the tree. */
+  people_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface StaffTreeList {
+  count: number
+  results: StaffTree[]
+}
+
+export interface StaffTreeDetail {
+  tree: StaffTree
+  members: Member[]
+  relationships: Relationship[]
 }
 
 export interface Tree {

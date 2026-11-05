@@ -73,6 +73,11 @@ export default function Protected() {
               </button>
             </>
           )}
+          {me.data?.is_superuser && (
+            <Link to="/staff/trees" className="nav-link" title="Every family in the system (staff)">
+              <Users size={16} /> <span className="label">All trees</span>
+            </Link>
+          )}
           {inCommunities ? (
             <Link to="/" className="nav-link" title="Your families">
               <Users size={16} /> <span className="label">Families</span>

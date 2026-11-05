@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import DetailPanel from './DetailPanel'
 import { Back, Gear, Plus, Poster, Search } from './Icons'
@@ -9,7 +9,7 @@ import { useMe, useMembers, useRelationships, useRestore, useTrees, type MemberS
 import Rings from './Rings'
 import TreeView from './TreeView'
 import UndoBar, { type Undoable } from './UndoBar'
-import { buildForest, buildGraph, countPeople, depthOf, findRoots, inferGenders } from './graph'
+import { useTreeLayout } from './treeLayout'
 import { fullName, type Member, type Relationship } from './types'
 
 export default function TreePage() {
@@ -30,28 +30,7 @@ export default function TreePage() {
   const [undo, setUndo] = useState<Undoable | null>(null)
   const restore = useRestore(treeId)
 
-  const memberList = useMemo(() => members.data ?? [], [members.data])
-  const byId = useMemo(() => new Map(memberList.map((m) => [m.id, m])), [memberList])
-  const graph = useMemo(() => buildGraph(rels.data ?? []), [rels.data])
-  // Every family line is drawn, so in-laws' parents are never hidden. The biggest connected
-  // family goes first (leftmost); smaller or unconnected ones follow.
-  const forest = useMemo(() => {
-    const candidates = findRoots(memberList, graph).map((m) => m.id)
-    if (candidates.length === 0 && memberList.length > 0) candidates.push(memberList[0].id)
-    let best: ReturnType<typeof buildForest> = []
-    let bestSize = -1
-    for (const id of candidates) {
-      const f = buildForest(id, byId, graph)
-      const size = f[0] ? countPeople(f[0]) : 0
-      if (size > bestSize) {
-        best = f
-        bestSize = size
-      }
-    }
-    return best
-  }, [memberList, byId, graph])
-  const generations = Math.max(0, ...forest.map(depthOf))
-  const genders = useMemo(() => inferGenders(rels.data ?? [], memberList), [rels.data, memberList])
+  const { memberList, byId, forest, generations, genders } = useTreeLayout(members.data, rels.data)
 
   const selected = selectedId !== null ? byId.get(selectedId) : undefined
   const matches = query.trim()

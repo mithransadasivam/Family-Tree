@@ -1,5 +1,5 @@
 // Fixtures shared by the component tests.
-import type { Member, Relationship, RelationshipType, Tree, User } from './types'
+import type { Member, Relationship, RelationshipType, StaffTree, StaffTreeDetail, Tree, User } from './types'
 
 export const OWNER: User = { id: 1, email: 'owner@example.com', first_name: 'Olive', last_name: 'Owner' }
 export const GUEST: User = { id: 2, email: 'guest@example.com', first_name: 'Gus', last_name: 'Guest' }
@@ -51,3 +51,27 @@ export const SIBLINGS: Relationship[] = [
 export const PARENT_CHILD: Relationship[] = [
   { id: 11, tree: 1, member_1: 1, member_2: 2, relationship_type: 3, relationship_type_name: 'Father' },
 ]
+
+// --- staff (superuser) pages ---------------------------------------------------------------
+export const SUPERUSER: User = {
+  id: 9, email: 'root@example.com', first_name: 'Rhea', last_name: 'Root', is_staff: true, is_superuser: true,
+}
+
+const staffTree = (over: Partial<StaffTree>): StaffTree => ({
+  id: 1, tree_name: 'The Tests', description: '', owner: OWNER, is_active: true, approval_required: true,
+  account_count: 2, people_count: 2, created_at: '2026-01-02T03:04:05Z', updated_at: '2026-01-02T03:04:05Z', ...over,
+})
+
+export const STAFF_TREES: StaffTree[] = [
+  staffTree({ id: 1, tree_name: 'Smith Family' }),
+  staffTree({
+    id: 2, tree_name: 'Jones Family', owner: GUEST, account_count: 1, people_count: 0, is_active: false,
+    created_at: '2026-02-03T00:00:00Z',
+  }),
+]
+
+export const STAFF_DETAIL: StaffTreeDetail = {
+  tree: STAFF_TREES[0],
+  members: MEMBERS,
+  relationships: SIBLINGS,
+}

@@ -75,3 +75,36 @@ describe('DetailPanel delete actions', () => {
     expect(screen.getByRole('button', { name: /remove relationship with/i })).toBeTruthy()
   })
 })
+
+describe('DetailPanel read-only mode (superuser staff view)', () => {
+  function showReadOnly() {
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <DetailPanel
+          treeId={1}
+          member={BEN}
+          members={MEMBERS}
+          relationships={SIBLINGS}
+          canDelete={false}
+          readOnly
+          onEdit={() => undefined}
+          onDeleted={() => undefined}
+          onRelationshipRemoved={() => undefined}
+          onSelect={() => undefined}
+          onClose={() => undefined}
+        />
+      </QueryClientProvider>,
+    )
+  }
+
+  it('shows the person and their relationships but nothing that changes them', () => {
+    showReadOnly()
+    expect(screen.getByRole('heading', { name: /ben/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /ann test/i })).toBeTruthy() // relationship rows still navigate
+    for (const name of [/^edit$/i, /delete/i, /edit relationship/i, /remove relationship/i, /^connect$/i]) {
+      expect(screen.queryByRole('button', { name }), String(name)).toBeNull()
+    }
+    expect(screen.queryByRole('heading', { name: /connect someone/i })).toBeNull()
+    expect(screen.queryByText(/choose it in edit/i)).toBeNull()
+  })
+})
