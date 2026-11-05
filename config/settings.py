@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'axes',
     'users',
     'family_trees',
     'family_members',
@@ -40,6 +41,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'axes.middleware.AxesMiddleware',  # must be last: answers locked-out logins with a 429
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -167,3 +169,24 @@ GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_IDS = [c.strip() for c in (GOOGLE_CLIENT_ID or '').split(',') if c.strip()]
 
 AUTH_USER_MODEL = 'users.User'
+
+# --- Admin login lockout (django-axes) -------------------------------------------------------
+# The app itself signs people in with Google tokens and the API never calls authenticate(), so the
+# only password login is the Django admin. This stops it being brute-forced.
+AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesStandaloneBackend',  # first: refuses locked-out logins before any password check
+    'django.contrib.auth.backends.ModelBackend',
+]
+AXES_ONLY_ADMIN_SITE = True        # nothing outside /admin/ is ever counted or locked
+AXES_FAILURE_LIMIT = 5             # failed attempts before the account is locked
+AXES_COOLOFF_TIME = timedelta(minutes=30)
+AXES_RESET_ON_SUCCESS = True       # a good login clears the failure count
+# Lock per account, not per IP: behind Railway's proxy every request seems to come from the proxy,
+# and a client-supplied forwarded address can be spoofed to dodge a per-IP limit.
+AXES_LOCKOUT_PARAMETERS = ['username']
+AXES_USERNAME_CALLABLE = 'config.axes_helpers.normalized_username'  # Boss@x.com == boss@x.com
+# To unlock early:  python manage.py axes_reset
+# axes.W006 asks for 'ip_address' in AXES_LOCKOUT_PARAMETERS. Deliberately not done: behind Railway
+# the app only sees the proxy's address (so an IP rule would lock everyone out together or do
+# nothing), and a forwarded-for header is attacker-controlled. The lock is per account instead.
+SILENCED_SYSTEM_CHECKS = ['axes.W006']

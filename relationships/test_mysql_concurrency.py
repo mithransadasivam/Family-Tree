@@ -5,7 +5,7 @@ SQLite ignores SELECT ... FOR UPDATE, so the normal suite can only simulate thes
 fire genuinely simultaneous requests from threads, each with its own MySQL connection, and only run
 on MySQL (they skip elsewhere):
 
-    python manage.py test relationships.test_mysql_concurrency     # config.settings = MySQL
+    TEST_DB=mysql python manage.py test relationships.test_mysql_concurrency --settings=config.test_settings
 
 Every locked scenario has a CONTROL run with the locks switched off. The control must reproduce the
 race, otherwise the locked test proves nothing; if it cannot within a few rounds it is skipped
