@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -7,6 +8,15 @@ from family_trees.models import FamilyTree, TreeMember
 from users.models import User
 from edit_history.utils import log_edit
 from .rules import check_relationship
+
+
+def lock_tree(tree_id):
+    """
+    Row-lock the tree for the rest of the current transaction. Relationship writes check the
+    whole tree (one link per pair, no parent loops) and then save, so two at once must take
+    turns or both can pass the check. Call inside transaction.atomic().
+    """
+    return FamilyTree.objects.select_for_update().get(id=tree_id)
 
 
 def get_current_user(request):
@@ -39,14 +49,15 @@ class RelationshipListView(APIView):
         serializer = RelationshipSerializer(data=request.data)
         if serializer.is_valid():
             data = serializer.validated_data
-            problem = check_relationship(
-                int(tree_id), data['member_1'], data['member_2'], data['relationship_type']
-            )
-            if problem:
-                return Response({'error': problem}, status=status.HTTP_400_BAD_REQUEST)
-            rel = serializer.save(created_by=user)
-            tree = FamilyTree.objects.get(id=tree_id)
-            log_edit(tree, 'relationship', rel.id, user, f'Added relationship')
+            with transaction.atomic():
+                tree = lock_tree(int(tree_id))
+                problem = check_relationship(
+                    int(tree_id), data['member_1'], data['member_2'], data['relationship_type']
+                )
+                if problem:
+                    return Response({'error': problem}, status=status.HTTP_400_BAD_REQUEST)
+                rel = serializer.save(created_by=user)
+                log_edit(tree, 'relationship', rel.id, user, f'Added relationship')
             return Response(RelationshipSerializer(rel).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -64,23 +75,31 @@ class RelationshipDetailView(APIView):
 
         allowed = ('member_1', 'member_2', 'relationship_type')
         data = {k: request.data[k] for k in allowed if k in request.data}
-        serializer = RelationshipSerializer(rel, data=data, partial=True)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        # Both people must belong to this relationship's own tree.
-        for field in ('member_1', 'member_2'):
-            member = serializer.validated_data.get(field)
-            if member is not None and member.tree_id != rel.tree_id:
-                return Response({'error': 'Member is not in this tree'}, status=status.HTTP_400_BAD_REQUEST)
-        member_1 = serializer.validated_data.get('member_1', rel.member_1)
-        member_2 = serializer.validated_data.get('member_2', rel.member_2)
-        rel_type = serializer.validated_data.get('relationship_type', rel.relationship_type)
-        problem = check_relationship(rel.tree_id, member_1, member_2, rel_type, exclude_id=rel.id)
-        if problem:
-            return Response({'error': problem}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            # Serialise with every other write to this tree, then re-read the link: it may have
+            # been changed or removed while we waited for the lock.
+            tree = lock_tree(rel.tree_id)
+            try:
+                rel = Relationship.objects.get(id=rel_id)
+            except Relationship.DoesNotExist:
+                return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+            serializer = RelationshipSerializer(rel, data=data, partial=True)
+            if not serializer.is_valid():
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            # Both people must belong to this relationship's own tree.
+            for field in ('member_1', 'member_2'):
+                member = serializer.validated_data.get(field)
+                if member is not None and member.tree_id != rel.tree_id:
+                    return Response({'error': 'Member is not in this tree'}, status=status.HTTP_400_BAD_REQUEST)
+            member_1 = serializer.validated_data.get('member_1', rel.member_1)
+            member_2 = serializer.validated_data.get('member_2', rel.member_2)
+            rel_type = serializer.validated_data.get('relationship_type', rel.relationship_type)
+            problem = check_relationship(rel.tree_id, member_1, member_2, rel_type, exclude_id=rel.id)
+            if problem:
+                return Response({'error': problem}, status=status.HTTP_400_BAD_REQUEST)
 
-        rel = serializer.save()
-        log_edit(rel.tree, 'relationship', rel.id, user, 'Updated relationship')
+            rel = serializer.save()
+            log_edit(tree, 'relationship', rel.id, user, 'Updated relationship')
         return Response(RelationshipSerializer(rel).data)
 
     def delete(self, request, rel_id):
