@@ -116,12 +116,27 @@ fun relationshipLabelFor(
 }
 
 /**
- * (member_1, member_2) to save for a link edited from [selfId]'s page. The type says what member_1
- * IS to member_2, so an edit keeps the stored order: [selfIsFirst] is whether the viewed member was
- * member_1 when the link was opened. A new link always has the viewed member first.
+ * Which side of a NEW link the viewed member is on. Same convention as the website: on Ben's page,
+ * picking Ann and "Father" means "Ann is the Father of Ben", so the OTHER person is member_1 and the
+ * viewed member is member_2. (Editing an existing link ignores this and keeps its stored order.)
+ */
+const val NEW_LINK_SELF_IS_FIRST = false
+
+/**
+ * (member_1, member_2) to save for a link made or edited from [selfId]'s page. The type says what
+ * member_1 IS to member_2, so an edit keeps the stored order: [selfIsFirst] is whether the viewed
+ * member was member_1 when the link was opened. A new link uses [NEW_LINK_SELF_IS_FIRST].
  */
 fun relationshipEndpoints(selfId: Int, otherId: Int, selfIsFirst: Boolean): Pair<Int, Int> =
     if (selfIsFirst) selfId to otherId else otherId to selfId
+
+/** Caption above the type list: says whose role is being picked, e.g. "What Ann is to Ben". */
+fun relationshipTypePrompt(selfName: String?, otherName: String?, selfIsFirst: Boolean): String {
+    val self = selfName ?: "this member"
+    val other = otherName ?: "the selected member"
+    return if (selfIsFirst) "Relationship type: what $self is to $other"
+    else "Relationship type: what $other is to $self"
+}
 
 /** "[A] is the [term] of [B]" in stored order, so the sheet reads the same way the link is saved. */
 fun relationshipSentence(selfName: String?, otherName: String?, term: String?, selfIsFirst: Boolean): String {

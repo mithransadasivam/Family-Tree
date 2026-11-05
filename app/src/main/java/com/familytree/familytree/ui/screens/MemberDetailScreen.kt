@@ -107,9 +107,10 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
     var selectedTerm by remember { mutableStateOf<RelationshipTerm?>(null) }
     var collapsedCategories by remember { mutableStateOf<Set<RelationshipCategory>>(emptySet()) }
     var editingRelationshipId by remember { mutableStateOf<Int?>(null) }
-    // Which side of the stored link the viewed member is on. Only matters when editing: the type says
-    // what member_1 IS to member_2, so saving must keep the original order or the relationship flips.
-    var editingSelfIsFirst by remember { mutableStateOf(true) }
+    // Which side of the stored link the viewed member is on. The type says what member_1 IS to
+    // member_2. Editing must keep the stored order or the relationship flips; a NEW link follows the
+    // website's convention (NEW_LINK_SELF_IS_FIRST): "[other] is the [type] of [this member]".
+    var editingSelfIsFirst by remember { mutableStateOf(NEW_LINK_SELF_IS_FIRST) }
 
     var showEditSheet by remember { mutableStateOf(false) }
     var editFirstName by remember { mutableStateOf("") }
@@ -146,7 +147,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
         collapsedCategories = emptySet()
         selectedTerm = null
         editingRelationshipId = null
-        editingSelfIsFirst = true
+        editingSelfIsFirst = NEW_LINK_SELF_IS_FIRST
         showAddRel = true
     }
 
@@ -325,7 +326,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
             relSearchQuery = ""
             relLanguage = RelationshipLanguage.ENGLISH
             editingRelationshipId = null
-            editingSelfIsFirst = true
+            editingSelfIsFirst = NEW_LINK_SELF_IS_FIRST
         }
 
         val visibleTerms = remember(relLanguage, relSearchQuery) {
@@ -396,7 +397,11 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                 }
 
                 Spacer(Modifier.height(16.dp))
-                Text("Relationship Type", fontSize = 12.sp, color = TextHint)
+                Text(
+                    relationshipTypePrompt(member?.first_name, selectedOther?.first_name, editingSelfIsFirst),
+                    fontSize = 12.sp,
+                    color = TextHint
+                )
                 Spacer(Modifier.height(8.dp))
 
                 // Step 1 - language/culture chips
