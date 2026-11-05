@@ -81,6 +81,17 @@ interface ApiService {
     @PATCH("join-requests/{id}/")
     suspend fun updateJoinRequestStatus(@Path("id") id: Int, @Body body: UpdateJoinRequestStatusRequest): Response<JoinRequest>
 
+    // Superuser-only and read-only; the server answers 403 to anyone else.
+    @GET("staff/trees/")
+    suspend fun getStaffTrees(
+        @Query("q") q: String,
+        @Query("offset") offset: Int,
+        @Query("limit") limit: Int
+    ): Response<StaffTreeList>
+
+    @GET("staff/trees/{id}/")
+    suspend fun getStaffTree(@Path("id") id: Int): Response<StaffTreeDetail>
+
     @GET("join-requests/mine/")
     suspend fun getMyJoinRequests(): Response<List<JoinRequest>>
 }

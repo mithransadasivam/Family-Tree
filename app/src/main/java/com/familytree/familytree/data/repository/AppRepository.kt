@@ -7,6 +7,7 @@ import com.familytree.familytree.data.api.RetrofitClient
 import com.familytree.familytree.data.api.TokenManager
 import com.familytree.familytree.data.api.dataStore
 import com.familytree.familytree.data.models.*
+import com.familytree.familytree.data.session.SessionState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -56,7 +57,7 @@ class AppRepository(context: Context) {
                 if (body != null) Result.success(body)
                 else Result.failure(Exception("Empty response from server"))
             } else {
-                if (response.code() == 401) _sessionExpired.value = true
+                if (response.code() == 401) expireSession()
                 Result.failure(Exception(backendErrorMessage(response)))
             }
         } catch (e: Exception) {
@@ -70,7 +71,7 @@ class AppRepository(context: Context) {
             if (response.isSuccessful) {
                 Result.success(Unit)
             } else {
-                if (response.code() == 401) _sessionExpired.value = true
+                if (response.code() == 401) expireSession()
                 Result.failure(Exception(backendErrorMessage(response)))
             }
         } catch (e: Exception) {
@@ -78,9 +79,18 @@ class AppRepository(context: Context) {
         }
     }
 
+    // A 401 means the session is over: tell the navigation layer, and forget any staff privileges.
+    private fun expireSession() {
+        _sessionExpired.value = true
+        SessionState.clear()
+    }
+
     suspend fun googleAuth(idToken: String): Result<AuthResponse> {
         val result = apiCall { api.googleAuth(mapOf("id_token" to idToken)) }
-        result.getOrNull()?.let { saveToken(it.tokens.access) }
+        result.getOrNull()?.let {
+            saveToken(it.tokens.access)
+            SessionState.update(it.user) // the sign-in response already carries is_staff / is_superuser
+        }
         return result
     }
 
@@ -91,6 +101,7 @@ class AppRepository(context: Context) {
     }
 
     suspend fun clearToken() {
+        SessionState.clear()
         appContext.dataStore.edit { prefs ->
             prefs.remove(TokenManager.TOKEN_KEY)
         }
@@ -98,9 +109,18 @@ class AppRepository(context: Context) {
 
     fun isLoggedIn(): Boolean = TokenManager.getToken(appContext) != null
 
-    suspend fun getMe(): Result<User> = apiCall { api.getMe() }
+    // Every read of the account refreshes the staff flags, so a revoked superuser loses the entry
+    // the next time anything loads the profile.
+    suspend fun getMe(): Result<User> =
+        apiCall { api.getMe() }.also { r -> r.getOrNull()?.let { SessionState.update(it) } }
 
     suspend fun updateMe(updates: Map<String, String>): Result<User> = apiCall { api.updateMe(updates) }
+
+    // Superuser-only, read-only. The server returns 403 to anyone else.
+    suspend fun getStaffTrees(query: String, offset: Int, limit: Int): Result<StaffTreeList> =
+        apiCall { api.getStaffTrees(query, offset, limit) }
+
+    suspend fun getStaffTree(treeId: Int): Result<StaffTreeDetail> = apiCall { api.getStaffTree(treeId) }
 
     suspend fun getFamilyTrees(): Result<List<FamilyTree>> = apiCall { api.getFamilyTrees() }
 

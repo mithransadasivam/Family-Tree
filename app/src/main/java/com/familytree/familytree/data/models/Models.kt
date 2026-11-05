@@ -9,7 +9,10 @@ data class User(
     val address: String,
     val photo_url: String,
     val created_at: String,
-    val profile: UserProfile?
+    val profile: UserProfile?,
+    // Sent only for your own account. A server that does not send them means "not staff".
+    val is_staff: Boolean = false,
+    val is_superuser: Boolean = false
 )
 
 data class UserProfile(
@@ -153,6 +156,44 @@ data class UpdateJoinRequestStatusRequest(
 
 data class UpdateTreeSettingsRequest(
     val approval_required: Boolean
+)
+
+// ---- Superuser-only tree browsing (GET /api/staff/trees/ ...). Read-only. ----------------------
+
+/** The slim public shape the staff endpoints use for an owner: no phone, address or profile. */
+data class StaffOwner(
+    val id: Int,
+    val email: String,
+    val first_name: String,
+    val last_name: String
+) {
+    fun displayName(): String = "$first_name $last_name".trim().ifEmpty { email }
+}
+
+data class StaffTree(
+    val id: Int,
+    val tree_name: String,
+    val description: String,
+    val owner: StaffOwner,
+    // Deleted trees are hidden from everyone else but listed here, flagged.
+    val is_active: Boolean,
+    val approval_required: Boolean,
+    // Accounts that belong to the tree, vs. people drawn in it.
+    val account_count: Int,
+    val people_count: Int,
+    val created_at: String,
+    val updated_at: String
+)
+
+data class StaffTreeList(
+    val count: Int,
+    val results: List<StaffTree>
+)
+
+data class StaffTreeDetail(
+    val tree: StaffTree,
+    val members: List<FamilyMember>,
+    val relationships: List<Relationship>
 )
 
 data class EditHistory(
