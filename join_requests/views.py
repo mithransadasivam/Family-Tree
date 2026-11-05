@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -40,43 +41,49 @@ class JoinRequestListCreateView(APIView):
         user = get_current_user(request)
         code = request.data.get('code', '').upper().strip()
         message = request.data.get('message', '')
-        try:
-            family_code = FamilyCode.objects.get(code=code)
-        except FamilyCode.DoesNotExist:
-            return Response({'error': 'Invalid code'}, status=status.HTTP_404_NOT_FOUND)
-        if family_code.is_used:
-            return Response({'error': 'This code has already been used'}, status=status.HTTP_400_BAD_REQUEST)
+        # One transaction, with the code row locked: two people submitting the same single-use
+        # code at once can no longer both see it as unused and both get in.
+        with transaction.atomic():
+            try:
+                family_code = FamilyCode.objects.select_for_update().get(code=code)
+            except FamilyCode.DoesNotExist:
+                return Response({'error': 'Invalid code'}, status=status.HTTP_404_NOT_FOUND)
+            if family_code.is_used:
+                return Response({'error': 'This code has already been used'}, status=status.HTTP_400_BAD_REQUEST)
 
-        tree = family_code.tree
-        if not tree.is_active:
-            return Response({'error': 'Invalid code'}, status=status.HTTP_404_NOT_FOUND)
-        if TreeMember.objects.filter(tree=tree, user=user).exists():
-            return Response({'error': 'You are already a member of this tree'}, status=status.HTTP_400_BAD_REQUEST)
-        if JoinRequest.objects.filter(tree=tree, requester=user, status='pending').exists():
-            return Response({'error': 'You already have a pending request for this tree'}, status=status.HTTP_400_BAD_REQUEST)
+            tree = family_code.tree
+            if not tree.is_active:
+                return Response({'error': 'Invalid code'}, status=status.HTTP_404_NOT_FOUND)
+            if TreeMember.objects.filter(tree=tree, user=user).exists():
+                return Response({'error': 'You are already a member of this tree'}, status=status.HTTP_400_BAD_REQUEST)
+            if JoinRequest.objects.filter(tree=tree, requester=user, status='pending').exists():
+                return Response({'error': 'You already have a pending request for this tree'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not tree.approval_required:
-            TreeMember.objects.create(tree=tree, user=user, role='member')
-            family_code.is_used = True
-            family_code.used_by = user
-            family_code.used_at = timezone.now()
-            family_code.save()
+            if not tree.approval_required:
+                # get_or_create so losing a race for the same membership is a clean 400, not a 500.
+                _, created = TreeMember.objects.get_or_create(tree=tree, user=user, defaults={'role': 'member'})
+                if not created:
+                    return Response({'error': 'You are already a member of this tree'}, status=status.HTTP_400_BAD_REQUEST)
+                family_code.is_used = True
+                family_code.used_by = user
+                family_code.used_at = timezone.now()
+                family_code.save()
+                join_request = JoinRequest.objects.create(
+                    tree=tree, requester=user, status='approved',
+                    message=message, family_code_used=family_code
+                )
+                log_edit(tree, 'tree_member', user.id, user, f'{user.email} auto-joined via code {code}')
+                return Response({
+                    'auto_approved': True,
+                    'message': f'Successfully joined {tree.tree_name}',
+                    'request': JoinRequestSerializer(join_request).data,
+                }, status=status.HTTP_201_CREATED)
+
             join_request = JoinRequest.objects.create(
-                tree=tree, requester=user, status='approved',
+                tree=tree, requester=user, status='pending',
                 message=message, family_code_used=family_code
             )
-            log_edit(tree, 'tree_member', user.id, user, f'{user.email} auto-joined via code {code}')
-            return Response({
-                'auto_approved': True,
-                'message': f'Successfully joined {tree.tree_name}',
-                'request': JoinRequestSerializer(join_request).data,
-            }, status=status.HTTP_201_CREATED)
-
-        join_request = JoinRequest.objects.create(
-            tree=tree, requester=user, status='pending',
-            message=message, family_code_used=family_code
-        )
-        log_edit(tree, 'join_request', join_request.id, user, f'{user.email} requested to join via code {code}')
+            log_edit(tree, 'join_request', join_request.id, user, f'{user.email} requested to join via code {code}')
         who = f'{user.first_name} {user.last_name}'.strip() or user.email
         email_owner(
             tree.owner,
@@ -114,40 +121,42 @@ class JoinRequestDetailView(APIView):
 
     def patch(self, request, request_id):
         user = get_current_user(request)
-        try:
-            join_request = JoinRequest.objects.get(id=request_id)
-        except JoinRequest.DoesNotExist:
-            return Response({'error': 'Request not found'}, status=status.HTTP_404_NOT_FOUND)
-        if not join_request.tree.is_active:
-            return Response({'error': 'Request not found'}, status=status.HTTP_404_NOT_FOUND)
-        if join_request.tree.owner != user:
-            return Response({'error': 'Only the tree owner can act on this request'}, status=status.HTTP_403_FORBIDDEN)
-        if join_request.status != 'pending':
-            return Response({'error': 'This request has already been handled'}, status=status.HTTP_400_BAD_REQUEST)
-
         new_status = request.data.get('status')
-        if new_status not in ('approved', 'rejected'):
-            return Response({'error': "status must be 'approved' or 'rejected'"}, status=status.HTTP_400_BAD_REQUEST)
+        # Decide and apply in one transaction on the locked request row, so a concurrent
+        # approve + reject can't both succeed and leave "rejected" next to a real membership.
+        with transaction.atomic():
+            try:
+                join_request = JoinRequest.objects.select_for_update().get(id=request_id)
+            except JoinRequest.DoesNotExist:
+                return Response({'error': 'Request not found'}, status=status.HTTP_404_NOT_FOUND)
+            if not join_request.tree.is_active:
+                return Response({'error': 'Request not found'}, status=status.HTTP_404_NOT_FOUND)
+            if join_request.tree.owner != user:
+                return Response({'error': 'Only the tree owner can act on this request'}, status=status.HTTP_403_FORBIDDEN)
+            if join_request.status != 'pending':
+                return Response({'error': 'This request has already been handled'}, status=status.HTTP_400_BAD_REQUEST)
+            if new_status not in ('approved', 'rejected'):
+                return Response({'error': "status must be 'approved' or 'rejected'"}, status=status.HTTP_400_BAD_REQUEST)
 
-        join_request.status = new_status
-        join_request.save()
+            join_request.status = new_status
+            join_request.save()
 
-        if new_status == 'approved':
-            TreeMember.objects.get_or_create(
-                tree=join_request.tree, user=join_request.requester,
-                defaults={'role': 'member'}
+            if new_status == 'approved':
+                TreeMember.objects.get_or_create(
+                    tree=join_request.tree, user=join_request.requester,
+                    defaults={'role': 'member'}
+                )
+                code = join_request.family_code_used
+                if code and not code.is_used:
+                    code.is_used = True
+                    code.used_by = join_request.requester
+                    code.used_at = timezone.now()
+                    code.save()
+
+            log_edit(
+                join_request.tree, 'join_request', join_request.id, user,
+                f'{new_status.capitalize()} join request from {join_request.requester.email}'
             )
-            code = join_request.family_code_used
-            if code and not code.is_used:
-                code.is_used = True
-                code.used_by = join_request.requester
-                code.used_at = timezone.now()
-                code.save()
-
-        log_edit(
-            join_request.tree, 'join_request', join_request.id, user,
-            f'{new_status.capitalize()} join request from {join_request.requester.email}'
-        )
         return Response(JoinRequestSerializer(join_request).data)
 
 

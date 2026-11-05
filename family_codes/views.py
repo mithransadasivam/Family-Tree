@@ -1,5 +1,6 @@
 import random
 import string
+from django.db import transaction
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -53,30 +54,35 @@ class RedeemCodeView(APIView):
     def post(self, request):
         user = get_current_user(request)
         code = request.data.get('code', '').upper().strip()
-        try:
-            family_code = FamilyCode.objects.get(code=code)
-        except FamilyCode.DoesNotExist:
-            return Response({'error': 'Invalid code'}, status=status.HTTP_404_NOT_FOUND)
-        if family_code.is_used:
-            return Response({'error': 'This code has already been used'}, status=status.HTTP_400_BAD_REQUEST)
-        tree = family_code.tree
-        if not tree.is_active:
-            return Response({'error': 'Invalid code'}, status=status.HTTP_404_NOT_FOUND)
-        if TreeMember.objects.filter(tree=tree, user=user).exists():
-            return Response({'error': 'You are already a member of this tree'}, status=status.HTTP_400_BAD_REQUEST)
-        if tree.approval_required:
-            # Joining directly would skip the owner's approval. Join requests (POST
-            # /api/join-requests/) are the path that honours the setting.
-            return Response(
-                {'error': "This tree needs the owner's approval. Send a join request instead."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        TreeMember.objects.create(tree=tree, user=user, role='member')
-        family_code.is_used = True
-        family_code.used_by = user
-        family_code.used_at = timezone.now()
-        family_code.save()
-        log_edit(tree, 'tree_member', user.id, user, f'{user.email} joined via code {code}')
+        # One transaction with the code row locked, so a single-use code can't be consumed twice
+        # by simultaneous requests.
+        with transaction.atomic():
+            try:
+                family_code = FamilyCode.objects.select_for_update().get(code=code)
+            except FamilyCode.DoesNotExist:
+                return Response({'error': 'Invalid code'}, status=status.HTTP_404_NOT_FOUND)
+            if family_code.is_used:
+                return Response({'error': 'This code has already been used'}, status=status.HTTP_400_BAD_REQUEST)
+            tree = family_code.tree
+            if not tree.is_active:
+                return Response({'error': 'Invalid code'}, status=status.HTTP_404_NOT_FOUND)
+            if TreeMember.objects.filter(tree=tree, user=user).exists():
+                return Response({'error': 'You are already a member of this tree'}, status=status.HTTP_400_BAD_REQUEST)
+            if tree.approval_required:
+                # Joining directly would skip the owner's approval. Join requests (POST
+                # /api/join-requests/) are the path that honours the setting.
+                return Response(
+                    {'error': "This tree needs the owner's approval. Send a join request instead."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            _, created = TreeMember.objects.get_or_create(tree=tree, user=user, defaults={'role': 'member'})
+            if not created:
+                return Response({'error': 'You are already a member of this tree'}, status=status.HTTP_400_BAD_REQUEST)
+            family_code.is_used = True
+            family_code.used_by = user
+            family_code.used_at = timezone.now()
+            family_code.save()
+            log_edit(tree, 'tree_member', user.id, user, f'{user.email} joined via code {code}')
         from family_trees.serializers import FamilyTreeSerializer
         return Response({
             'message': f'Successfully joined {tree.tree_name}',
