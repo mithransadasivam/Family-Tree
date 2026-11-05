@@ -34,7 +34,9 @@ data class FamilyTree(
 data class FamilyMember(
     val id: Int,
     val tree: Int,
-    val user: User?,
+    // Id of the account this person is linked to, or null. The API sends a bare number here, NOT a
+    // nested user object - declaring it as `User?` made Gson throw for the whole members list.
+    val user: Int?,
     val first_name: String,
     val last_name: String,
     val phone: String,
