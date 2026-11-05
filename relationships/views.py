@@ -108,6 +108,10 @@ class RelationshipDetailView(APIView):
             rel = Relationship.objects.get(id=rel_id)
             if not TreeMember.objects.filter(tree=rel.tree, tree__is_active=True, user=user).exists():
                 return Response({'error': 'Not a member'}, status=status.HTTP_403_FORBIDDEN)
+            # Any member may add and edit relationships, but removing one is the tree owner's call.
+            if rel.tree.owner_id != user.id:
+                return Response({'error': 'Only the tree owner can delete a relationship'},
+                                status=status.HTTP_403_FORBIDDEN)
             rel.delete()
             return Response({'message': 'Relationship deleted'})
         except Relationship.DoesNotExist:

@@ -2,6 +2,110 @@ from django.test import TestCase
 
 from config.testing import client_for, join, make_tree, make_user
 from family_members.models import FamilyMember
+from relationships.models import Relationship, RelationshipType
+
+
+class OwnerOnlyDeleteTests(TestCase):
+    """
+    H9 permission model: every tree member can ADD and EDIT people and relationships, but only the
+    tree owner can DELETE a person or a relationship.
+    """
+
+    def setUp(self):
+        self.owner = make_user('owner')
+        self.member = make_user('member')
+        self.outsider = make_user('outsider')
+        self.tree = make_tree(self.owner)
+        join(self.tree, self.member)
+        mk = lambda n, by: FamilyMember.objects.create(tree=self.tree, first_name=n, created_by=by)
+        self.a, self.b = mk('A', self.owner), mk('B', self.member)
+        self.brother = RelationshipType.objects.create(type_name='Brother', category='biological')
+        self.rel = Relationship.objects.create(
+            tree=self.tree, member_1=self.a, member_2=self.b, relationship_type=self.brother,
+            created_by=self.member)
+
+    # -- deleting a person ------------------------------------------------------------------
+    def test_non_owner_cannot_delete_a_person_even_one_they_created(self):
+        res = client_for(self.member).delete(f'/api/family-members/{self.b.id}/')
+        self.assertEqual(res.status_code, 403)
+        self.assertIn('owner', res.json()['error'].lower())
+        self.assertTrue(FamilyMember.objects.filter(id=self.b.id).exists())
+
+    def test_owner_can_delete_a_person(self):
+        res = client_for(self.owner).delete(f'/api/family-members/{self.b.id}/')
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(FamilyMember.objects.filter(id=self.b.id).exists())
+        # Their relationships went with them.
+        self.assertFalse(Relationship.objects.filter(id=self.rel.id).exists())
+
+    def test_owner_still_cannot_delete_a_parent_with_children(self):
+        father = RelationshipType.objects.create(type_name='Father', category='biological')
+        Relationship.objects.filter(id=self.rel.id).delete()
+        Relationship.objects.create(
+            tree=self.tree, member_1=self.a, member_2=self.b, relationship_type=father)
+        res = client_for(self.owner).delete(f'/api/family-members/{self.a.id}/')
+        self.assertEqual(res.status_code, 400)
+        self.assertTrue(FamilyMember.objects.filter(id=self.a.id).exists())
+
+    def test_outsider_cannot_delete_a_person(self):
+        res = client_for(self.outsider).delete(f'/api/family-members/{self.b.id}/')
+        self.assertEqual(res.status_code, 403)
+        self.assertTrue(FamilyMember.objects.filter(id=self.b.id).exists())
+
+    # -- deleting a relationship ------------------------------------------------------------
+    def test_non_owner_cannot_delete_a_relationship_even_one_they_created(self):
+        res = client_for(self.member).delete(f'/api/relationships/{self.rel.id}/')
+        self.assertEqual(res.status_code, 403)
+        self.assertIn('owner', res.json()['error'].lower())
+        self.assertTrue(Relationship.objects.filter(id=self.rel.id).exists())
+
+    def test_owner_can_delete_a_relationship(self):
+        res = client_for(self.owner).delete(f'/api/relationships/{self.rel.id}/')
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(Relationship.objects.filter(id=self.rel.id).exists())
+
+    def test_outsider_cannot_delete_a_relationship(self):
+        res = client_for(self.outsider).delete(f'/api/relationships/{self.rel.id}/')
+        self.assertEqual(res.status_code, 403)
+        self.assertTrue(Relationship.objects.filter(id=self.rel.id).exists())
+
+    # -- add / edit stay open to every member -----------------------------------------------
+    def test_every_member_can_add_and_edit_people(self):
+        for user in (self.owner, self.member):
+            c = client_for(user)
+            res = c.post('/api/family-members/', {'tree': self.tree.id, 'first_name': f'By{user.id}'}, format='json')
+            self.assertEqual(res.status_code, 201, res.content)
+            res = c.patch(f'/api/family-members/{res.json()["id"]}/', {'last_name': 'Edited'}, format='json')
+            self.assertEqual(res.status_code, 200, res.content)
+        # ...including people somebody else created.
+        res = client_for(self.member).patch(
+            f'/api/family-members/{self.a.id}/', {'first_name': 'Alex'}, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.first_name, 'Alex')
+
+    def test_every_member_can_add_and_edit_relationships(self):
+        sister = RelationshipType.objects.create(type_name='Sister', category='biological')
+        for user in (self.owner, self.member):
+            c = client_for(user)
+            extra = FamilyMember.objects.create(tree=self.tree, first_name=f'X{user.id}', created_by=user)
+            res = c.post('/api/relationships/', {
+                'tree': self.tree.id, 'member_1': extra.id, 'member_2': self.a.id,
+                'relationship_type': self.brother.id}, format='json')
+            self.assertEqual(res.status_code, 201, res.content)
+            res = c.patch(f'/api/relationships/{res.json()["id"]}/',
+                          {'relationship_type': sister.id}, format='json')
+            self.assertEqual(res.status_code, 200, res.content)
+        # ...including a link somebody else created.
+        res = client_for(self.member).patch(
+            f'/api/relationships/{self.rel.id}/', {'relationship_type': sister.id}, format='json')
+        self.assertEqual(res.status_code, 200)
+
+    def test_non_owner_delete_is_rejected_for_inactive_tree_too(self):
+        self.tree.is_active = False
+        self.tree.save()
+        self.assertEqual(client_for(self.member).delete(f'/api/family-members/{self.b.id}/').status_code, 403)
+        self.assertTrue(FamilyMember.objects.filter(id=self.b.id).exists())
 
 
 class PrivatePhoneBypassTests(TestCase):

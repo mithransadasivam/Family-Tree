@@ -94,6 +94,9 @@ class FamilyMemberDetailView(APIView):
         member, error = self.get_member(member_id, user)
         if error:
             return error
+        # Any member may add and edit people, but removing one is the tree owner's call.
+        if member.tree.owner_id != user.id:
+            return Response({'error': 'Only the tree owner can delete a person'}, status=status.HTTP_403_FORBIDDEN)
         if has_descendants(member):
             return Response(
                 {'error': f'{member.first_name} has children in the family and cannot be deleted. '
