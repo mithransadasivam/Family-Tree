@@ -18,6 +18,13 @@ class FamilyMemberSerializer(serializers.ModelSerializer):
             data['phone'] = ''
         return data
 
+    def validate_tree(self, tree):
+        # A person never changes family: moving one into another tree would let any member plant
+        # data in a tree they don't belong to (or strand the person's relationships).
+        if self.instance is not None and tree.id != self.instance.tree_id:
+            raise serializers.ValidationError('A person cannot be moved to a different family')
+        return tree
+
     class Meta:
         model = FamilyMember
         fields = [
