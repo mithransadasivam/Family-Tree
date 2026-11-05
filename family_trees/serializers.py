@@ -1,10 +1,10 @@
 from rest_framework import serializers
 from .models import FamilyTree, TreeMember
-from users.serializers import UserSerializer
+from users.serializers import PublicUserSerializer
 
 
 class TreeMemberSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)
+    user = PublicUserSerializer(read_only=True)
 
     class Meta:
         model = TreeMember
@@ -12,7 +12,7 @@ class TreeMemberSerializer(serializers.ModelSerializer):
 
 
 class FamilyTreeSerializer(serializers.ModelSerializer):
-    owner = UserSerializer(read_only=True)
+    owner = PublicUserSerializer(read_only=True)
     member_count = serializers.SerializerMethodField()
 
     class Meta:

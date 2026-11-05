@@ -39,3 +39,15 @@ class UserSerializer(serializers.ModelSerializer):
         # email is the account's identity and photo_url is refreshed from Google at every sign-in,
         # so neither can be changed through the profile endpoint.
         read_only_fields = ['id', 'email', 'photo_url', 'created_at']
+
+
+class PublicUserSerializer(UserSerializer):
+    """
+    How OTHER people are shown (a tree's owner, an editor in the history, a tree member).
+    UserSerializer is for the signed-in user's own account only: it carries phone, address and
+    profile, which must not be handed to everyone who shares a tree with them.
+    """
+    profile = None  # drop the inherited nested profile
+
+    class Meta(UserSerializer.Meta):
+        fields = ['id', 'email', 'first_name', 'last_name', 'photo_url', 'has_avatar', 'avatar_version']

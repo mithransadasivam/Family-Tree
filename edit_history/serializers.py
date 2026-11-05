@@ -1,10 +1,10 @@
 from rest_framework import serializers
 from .models import EditHistory
-from users.serializers import UserSerializer
+from users.serializers import PublicUserSerializer
 
 
 class EditHistorySerializer(serializers.ModelSerializer):
-    edited_by = UserSerializer(read_only=True)
+    edited_by = PublicUserSerializer(read_only=True)
 
     class Meta:
         model = EditHistory
