@@ -36,7 +36,7 @@ class GenerateCodeView(APIView):
         user = get_current_user(request)
         tree_id = request.data.get('tree_id')
         try:
-            tree = FamilyTree.objects.get(id=tree_id)
+            tree = FamilyTree.objects.get(id=tree_id, is_active=True)
         except FamilyTree.DoesNotExist:
             return Response({'error': 'Tree not found'}, status=status.HTTP_404_NOT_FOUND)
         if tree.owner != user:
@@ -60,6 +60,8 @@ class RedeemCodeView(APIView):
         if family_code.is_used:
             return Response({'error': 'This code has already been used'}, status=status.HTTP_400_BAD_REQUEST)
         tree = family_code.tree
+        if not tree.is_active:
+            return Response({'error': 'Invalid code'}, status=status.HTTP_404_NOT_FOUND)
         if TreeMember.objects.filter(tree=tree, user=user).exists():
             return Response({'error': 'You are already a member of this tree'}, status=status.HTTP_400_BAD_REQUEST)
         if tree.approval_required:

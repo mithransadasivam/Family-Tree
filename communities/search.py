@@ -61,7 +61,7 @@ def parse_int(value, low=0, high=130):
 def search_people(community, params, today=None):
     """Returns (total, results). Raises ValueError for bad filter values."""
     today = today or date.today()
-    tree_ids = list(community.shared_trees.values_list('tree_id', flat=True))
+    tree_ids = list(community.shared_trees.filter(tree__is_active=True).values_list('tree_id', flat=True))
     qs = FamilyMember.objects.filter(tree_id__in=tree_ids)
 
     for token in (params.get('q') or '').split()[:5]:

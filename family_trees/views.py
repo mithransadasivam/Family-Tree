@@ -70,6 +70,8 @@ class FamilyTreeDetailView(APIView):
             return Response({'error': 'Only the owner can delete this tree'}, status=status.HTTP_403_FORBIDDEN)
         tree.is_active = False
         tree.save()
+        # A deleted family must also stop showing up in any community it was shared with.
+        tree.shared_in.all().delete()
         return Response({'message': 'Tree deleted'}, status=status.HTTP_200_OK)
 
 

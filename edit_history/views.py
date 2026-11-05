@@ -18,7 +18,7 @@ class EditHistoryListView(APIView):
         user = get_current_user(request)
         if not tree_id:
             return Response({'error': 'tree_id is required'}, status=status.HTTP_400_BAD_REQUEST)
-        if not TreeMember.objects.filter(tree_id=tree_id, user=user).exists():
+        if not TreeMember.objects.filter(tree_id=tree_id, tree__is_active=True, user=user).exists():
             return Response({'error': 'Not a member'}, status=status.HTTP_403_FORBIDDEN)
         history = EditHistory.objects.filter(tree_id=tree_id)
         return Response(EditHistorySerializer(history, many=True).data)

@@ -53,7 +53,7 @@ def summary(community, mem):
         'description': community.description,
         'role': mem.role,
         'member_count': community.memberships.count(),
-        'tree_count': community.shared_trees.count(),
+        'tree_count': community.shared_trees.filter(tree__is_active=True).count(),
     }
 
 

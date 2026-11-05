@@ -28,7 +28,7 @@ class JoinRequestListCreateView(APIView):
         if not tree_id:
             return Response({'error': 'tree_id is required'}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            tree = FamilyTree.objects.get(id=tree_id)
+            tree = FamilyTree.objects.get(id=tree_id, is_active=True)
         except FamilyTree.DoesNotExist:
             return Response({'error': 'Tree not found'}, status=status.HTTP_404_NOT_FOUND)
         if tree.owner != user:
@@ -48,6 +48,8 @@ class JoinRequestListCreateView(APIView):
             return Response({'error': 'This code has already been used'}, status=status.HTTP_400_BAD_REQUEST)
 
         tree = family_code.tree
+        if not tree.is_active:
+            return Response({'error': 'Invalid code'}, status=status.HTTP_404_NOT_FOUND)
         if TreeMember.objects.filter(tree=tree, user=user).exists():
             return Response({'error': 'You are already a member of this tree'}, status=status.HTTP_400_BAD_REQUEST)
         if JoinRequest.objects.filter(tree=tree, requester=user, status='pending').exists():
@@ -95,7 +97,7 @@ class JoinRequestDetailView(APIView):
     def get(self, request, request_id):
         user = get_current_user(request)
         join_request = JoinRequest.objects.select_related('tree', 'requester').filter(id=request_id).first()
-        if not join_request or join_request.tree.owner != user:
+        if not join_request or join_request.tree.owner != user or not join_request.tree.is_active:
             return Response({'error': 'Request not found'}, status=status.HTTP_404_NOT_FOUND)
         data = JoinRequestSerializer(join_request).data
         return Response({
@@ -115,6 +117,8 @@ class JoinRequestDetailView(APIView):
         try:
             join_request = JoinRequest.objects.get(id=request_id)
         except JoinRequest.DoesNotExist:
+            return Response({'error': 'Request not found'}, status=status.HTTP_404_NOT_FOUND)
+        if not join_request.tree.is_active:
             return Response({'error': 'Request not found'}, status=status.HTTP_404_NOT_FOUND)
         if join_request.tree.owner != user:
             return Response({'error': 'Only the tree owner can act on this request'}, status=status.HTTP_403_FORBIDDEN)

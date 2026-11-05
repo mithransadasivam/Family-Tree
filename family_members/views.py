@@ -36,7 +36,7 @@ class FamilyMemberListView(APIView):
         user = get_current_user(request)
         if not tree_id:
             return Response({'error': 'tree_id is required'}, status=status.HTTP_400_BAD_REQUEST)
-        if not TreeMember.objects.filter(tree_id=tree_id, user=user).exists():
+        if not TreeMember.objects.filter(tree_id=tree_id, tree__is_active=True, user=user).exists():
             return Response({'error': 'Not a member of this tree'}, status=status.HTTP_403_FORBIDDEN)
         members = FamilyMember.objects.filter(tree_id=tree_id).select_related('tree')
         return Response(FamilyMemberSerializer(members, many=True, context={'viewer': user}).data)
@@ -44,7 +44,7 @@ class FamilyMemberListView(APIView):
     def post(self, request):
         user = get_current_user(request)
         tree_id = request.data.get('tree')
-        if not TreeMember.objects.filter(tree_id=tree_id, user=user).exists():
+        if not TreeMember.objects.filter(tree_id=tree_id, tree__is_active=True, user=user).exists():
             return Response({'error': 'Not a member of this tree'}, status=status.HTTP_403_FORBIDDEN)
         serializer = FamilyMemberSerializer(data=request.data, context={'viewer': user})
         if serializer.is_valid():
@@ -59,7 +59,7 @@ class FamilyMemberDetailView(APIView):
     def get_member(self, member_id, user):
         try:
             member = FamilyMember.objects.get(id=member_id)
-            if not TreeMember.objects.filter(tree=member.tree, user=user).exists():
+            if not TreeMember.objects.filter(tree=member.tree, tree__is_active=True, user=user).exists():
                 return None, Response({'error': 'Not a member of this tree'}, status=status.HTTP_403_FORBIDDEN)
             return member, None
         except FamilyMember.DoesNotExist:

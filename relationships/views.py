@@ -26,7 +26,7 @@ class RelationshipListView(APIView):
         user = get_current_user(request)
         if not tree_id:
             return Response({'error': 'tree_id is required'}, status=status.HTTP_400_BAD_REQUEST)
-        if not TreeMember.objects.filter(tree_id=tree_id, user=user).exists():
+        if not TreeMember.objects.filter(tree_id=tree_id, tree__is_active=True, user=user).exists():
             return Response({'error': 'Not a member of this tree'}, status=status.HTTP_403_FORBIDDEN)
         relationships = Relationship.objects.filter(tree_id=tree_id)
         return Response(RelationshipSerializer(relationships, many=True).data)
@@ -34,7 +34,7 @@ class RelationshipListView(APIView):
     def post(self, request):
         user = get_current_user(request)
         tree_id = request.data.get('tree')
-        if not TreeMember.objects.filter(tree_id=tree_id, user=user).exists():
+        if not TreeMember.objects.filter(tree_id=tree_id, tree__is_active=True, user=user).exists():
             return Response({'error': 'Not a member of this tree'}, status=status.HTTP_403_FORBIDDEN)
         serializer = RelationshipSerializer(data=request.data)
         if serializer.is_valid():
@@ -59,7 +59,7 @@ class RelationshipDetailView(APIView):
             rel = Relationship.objects.get(id=rel_id)
         except Relationship.DoesNotExist:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
-        if not TreeMember.objects.filter(tree=rel.tree, user=user).exists():
+        if not TreeMember.objects.filter(tree=rel.tree, tree__is_active=True, user=user).exists():
             return Response({'error': 'Not a member'}, status=status.HTTP_403_FORBIDDEN)
 
         allowed = ('member_1', 'member_2', 'relationship_type')
@@ -87,7 +87,7 @@ class RelationshipDetailView(APIView):
         user = get_current_user(request)
         try:
             rel = Relationship.objects.get(id=rel_id)
-            if not TreeMember.objects.filter(tree=rel.tree, user=user).exists():
+            if not TreeMember.objects.filter(tree=rel.tree, tree__is_active=True, user=user).exists():
                 return Response({'error': 'Not a member'}, status=status.HTTP_403_FORBIDDEN)
             rel.delete()
             return Response({'message': 'Relationship deleted'})
