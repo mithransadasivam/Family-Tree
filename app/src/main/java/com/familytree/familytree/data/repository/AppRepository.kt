@@ -10,7 +10,6 @@ import com.familytree.familytree.data.models.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import org.json.JSONObject
 import retrofit2.Response
 
 class AppRepository(context: Context) {
@@ -147,15 +146,10 @@ class AppRepository(context: Context) {
     suspend fun submitJoinRequest(code: String, message: String): Result<SubmitJoinRequestResponse> =
         apiCall { api.submitJoinRequest(SubmitJoinRequestRequest(code, message)) }
 
-    // The Django views return {"error": "..."} bodies with human-readable messages (invalid
-    // code, already a member, etc.) - surface that instead of a bare status code where we can.
-    private fun backendErrorMessage(response: Response<*>): String {
-        val fallback = "Failed: ${response.code()}"
-        val body = response.errorBody()?.string() ?: return fallback
-        return try {
-            JSONObject(body).optString("error").takeIf { it.isNotBlank() } ?: fallback
-        } catch (e: Exception) { fallback }
-    }
+    // The server explains most failures ({"error"}, DRF {"detail"}, or per-field validation
+    // messages) - surface that instead of a bare status code (see errorMessageFrom).
+    private fun backendErrorMessage(response: Response<*>): String =
+        errorMessageFrom(response.errorBody()?.string(), response.code())
 
     suspend fun getPendingRequests(treeId: Int): Result<List<JoinRequest>> = apiCall { api.getPendingRequests(treeId) }
 
