@@ -3,6 +3,7 @@ import { FEMALE_TYPES, MALE_TYPES } from './graph'
 import { Mars, Venus } from './Icons'
 import { useCreatePerson, useRelationshipTypes, useSaveMember } from './queries'
 import { useTermPicker } from './TermPicker'
+import { useTreeSource } from './treeSource'
 import { fullName, type Gender, type Member } from './types'
 
 interface Props {
@@ -189,6 +190,8 @@ function AddForm({ treeId, members, onClose, onSaved }: Omit<Props, 'member'>) {
 /** Editing: the fuller set of details. Death details are not collected. */
 function EditForm({ treeId, member, onClose, onSaved }: Omit<Props, 'members' | 'member'> & { member: Member }) {
   const save = useSaveMember(treeId)
+  // Staff edit mode never shows or changes a phone number (a private one is hidden from staff).
+  const staff = useTreeSource().staff
   const [f, setF] = useState({
     first_name: member.first_name,
     last_name: member.last_name,
@@ -250,6 +253,7 @@ function EditForm({ treeId, member, onClose, onSaved }: Omit<Props, 'members' | 
           Photo link
           <input type="url" placeholder="https://…" value={f.photo_url} onChange={set('photo_url')} />
         </label>
+        {!staff && (
         <div className="field">
           <span>Phone</span>
           <div className="row wrap">
@@ -280,6 +284,7 @@ function EditForm({ treeId, member, onClose, onSaved }: Omit<Props, 'members' | 
             person can see it.
           </span>
         </div>
+        )}
         <p className="muted small">
           <Req />
           Required

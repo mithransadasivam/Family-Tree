@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, ENDPOINTS, json } from './api'
+import { ApiError, api, ENDPOINTS, json } from './api'
+import { useTreeSource, type TreeSource } from './treeSource'
 import type {
   Gender,
   EditHistory,
@@ -8,6 +9,8 @@ import type {
   Member,
   Relationship,
   RelationshipType,
+  StaffStash,
+  StaffStashRestored,
   StaffTreeDetail,
   StaffTreeList,
   Tree,
@@ -153,6 +156,33 @@ export const useStaffTree = (treeId: number) =>
     queryFn: () => api<StaffTreeDetail>(ENDPOINTS.staffTree(treeId)),
   })
 
+/** Superuser-only: people staff deleted from this tree who can still be restored (names and dates only). */
+export const useStaffStashes = (treeId: number, enabled: boolean) =>
+  useQuery({
+    queryKey: ['staff-stashes', treeId],
+    queryFn: () => api<StaffStash[]>(ENDPOINTS.staffRestores(treeId)),
+    enabled,
+  })
+
+/** Superuser-only: put one staff-deleted person back from the server's stash (private data included). */
+export function useRestoreStash(treeId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (stashId: number) =>
+      api<StaffStashRestored>(ENDPOINTS.staffRestore(treeId, stashId), json('POST', {})),
+    onSettled: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: ['staff-tree', treeId] }),
+        qc.invalidateQueries({ queryKey: ['staff-stashes', treeId] }),
+        qc.invalidateQueries({ queryKey: ['staff-trees'] }),
+      ]),
+  })
+}
+
+/** Mark a write's other dependents stale (staff mode only; empty for the normal family page). */
+const alsoStale = (qc: ReturnType<typeof useQueryClient>, src: TreeSource) =>
+  src.alsoStale.map((queryKey) => qc.invalidateQueries({ queryKey }))
+
 export const useTrees = () =>
   useQuery({ queryKey: ['trees'], queryFn: () => api<Tree[]>(ENDPOINTS.trees) })
 
@@ -198,13 +228,17 @@ export interface MemberInput {
 
 // Blank dates must be null for DRF's DateField; blank text fields are fine as ''.
 const toPayload = (i: MemberInput) => ({ ...i, birth_date: i.birth_date || null })
+// Staff never see a private number, so staff edit mode never sends one (the server ignores it too).
+const withoutPhone = ({ phone: _p, phone_public: _v, ...rest }: ReturnType<typeof toPayload>) => rest
 
 export function useSaveMember(treeId: number) {
   const qc = useQueryClient()
+  const src = useTreeSource()
   return useMutation({
     mutationFn: ({ id, input }: { id: number; input: MemberInput }) =>
-      api<Member>(ENDPOINTS.member(id), json('PATCH', toPayload(input))),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['members', treeId] }),
+      api<Member>(src.member(id), json('PATCH', src.staff ? withoutPhone(toPayload(input)) : toPayload(input))),
+    onSuccess: () =>
+      Promise.all([qc.invalidateQueries({ queryKey: src.membersKey(treeId) }), ...alsoStale(qc, src)]),
   })
 }
 
@@ -222,16 +256,17 @@ export interface NewPerson {
  */
 export function useCreatePerson(treeId: number) {
   const qc = useQueryClient()
+  const src = useTreeSource()
   return useMutation({
     mutationFn: async (p: NewPerson) => {
       const person = await api<Member>(
-        ENDPOINTS.membersCreate,
+        src.membersCreate,
         json('POST', { tree: treeId, first_name: p.first_name, last_name: p.last_name, gender: p.gender }),
       )
       if (p.relationship) {
         try {
           await api<Relationship>(
-            ENDPOINTS.relationshipsCreate,
+            src.relationshipsCreate,
             json('POST', {
               tree: treeId,
               member_1: person.id,
@@ -240,7 +275,7 @@ export function useCreatePerson(treeId: number) {
             }),
           )
         } catch (e) {
-          await api<unknown>(ENDPOINTS.member(person.id), { method: 'DELETE' }).catch(() => undefined)
+          await api<unknown>(src.member(person.id), { method: 'DELETE' }).catch(() => undefined)
           throw e
         }
       }
@@ -248,40 +283,47 @@ export function useCreatePerson(treeId: number) {
     },
     onSettled: () =>
       Promise.all([
-        qc.invalidateQueries({ queryKey: ['members', treeId] }),
-        qc.invalidateQueries({ queryKey: ['relationships', treeId] }),
+        qc.invalidateQueries({ queryKey: src.membersKey(treeId) }),
+        qc.invalidateQueries({ queryKey: src.relationshipsKey(treeId) }),
         qc.invalidateQueries({ queryKey: ['edit-history', treeId] }),
+        ...alsoStale(qc, src),
       ]),
   })
 }
 
 export function useDeleteMember(treeId: number) {
   const qc = useQueryClient()
+  const src = useTreeSource()
   return useMutation({
-    mutationFn: (id: number) => api<unknown>(ENDPOINTS.member(id), { method: 'DELETE' }),
+    // A staff delete answers with restore_id: the server kept the whole row so Undo can be exact.
+    mutationFn: (id: number) => api<{ restore_id?: number } | undefined>(src.member(id), { method: 'DELETE' }),
     onSuccess: () =>
       Promise.all([
-        qc.invalidateQueries({ queryKey: ['members', treeId] }),
-        qc.invalidateQueries({ queryKey: ['relationships', treeId] }),
+        qc.invalidateQueries({ queryKey: src.membersKey(treeId) }),
+        qc.invalidateQueries({ queryKey: src.relationshipsKey(treeId) }),
+        ...alsoStale(qc, src),
       ]),
   })
 }
 
 export function useAddRelationship(treeId: number) {
   const qc = useQueryClient()
+  const src = useTreeSource()
   return useMutation({
     mutationFn: (r: { member_1: number; member_2: number; relationship_type: number }) =>
-      api<Relationship>(ENDPOINTS.relationshipsCreate, json('POST', { tree: treeId, ...r })),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['relationships', treeId] }),
+      api<Relationship>(src.relationshipsCreate, json('POST', { tree: treeId, ...r })),
+    onSuccess: () =>
+      Promise.all([qc.invalidateQueries({ queryKey: src.relationshipsKey(treeId) }), ...alsoStale(qc, src)]),
   })
 }
 
 export function useUpdateRelationship(treeId: number) {
   const qc = useQueryClient()
+  const src = useTreeSource()
   return useMutation({
     mutationFn: (v: { id: number; member_1: number; member_2: number; relationship_type: number }) =>
       api<Relationship>(
-        ENDPOINTS.relationship(v.id),
+        src.relationship(v.id),
         json('PATCH', {
           member_1: v.member_1,
           member_2: v.member_2,
@@ -290,23 +332,28 @@ export function useUpdateRelationship(treeId: number) {
       ),
     onSuccess: () =>
       Promise.all([
-        qc.invalidateQueries({ queryKey: ['relationships', treeId] }),
+        qc.invalidateQueries({ queryKey: src.relationshipsKey(treeId) }),
         qc.invalidateQueries({ queryKey: ['edit-history', treeId] }),
+        ...alsoStale(qc, src),
       ]),
   })
 }
 
 export function useDeleteRelationship(treeId: number) {
   const qc = useQueryClient()
+  const src = useTreeSource()
   return useMutation({
-    mutationFn: (id: number) => api<unknown>(ENDPOINTS.relationship(id), { method: 'DELETE' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['relationships', treeId] }),
+    mutationFn: (id: number) => api<unknown>(src.relationship(id), { method: 'DELETE' }),
+    onSuccess: () =>
+      Promise.all([qc.invalidateQueries({ queryKey: src.relationshipsKey(treeId) }), ...alsoStale(qc, src)]),
   })
 }
 
 export interface MemberSnapshot {
   member: Member
   relationships: Relationship[]
+  /** Staff deletes only: the server-side stash that can restore this person exactly. */
+  restoreId?: number
 }
 
 /**
@@ -315,17 +362,19 @@ export interface MemberSnapshot {
  */
 export function useRestore(treeId: number) {
   const qc = useQueryClient()
+  const src = useTreeSource()
   const refresh = () =>
     Promise.all([
-      qc.invalidateQueries({ queryKey: ['members', treeId] }),
-      qc.invalidateQueries({ queryKey: ['relationships', treeId] }),
+      qc.invalidateQueries({ queryKey: src.membersKey(treeId) }),
+      qc.invalidateQueries({ queryKey: src.relationshipsKey(treeId) }),
       qc.invalidateQueries({ queryKey: ['edit-history', treeId] }),
+      ...alsoStale(qc, src),
     ])
 
   const relationship = async (r: Pick<Relationship, 'member_1' | 'member_2' | 'relationship_type'>) => {
     try {
       await api<Relationship>(
-        ENDPOINTS.relationshipsCreate,
+        src.relationshipsCreate,
         json('POST', {
           tree: treeId,
           member_1: r.member_1,
@@ -338,9 +387,35 @@ export function useRestore(treeId: number) {
     }
   }
 
-  const member = async ({ member: m, relationships }: MemberSnapshot): Promise<Member> => {
+  // Staff mode: ask the server to put the person back from its own stash. Unlike the payload path
+  // below (which can only resend what staff were shown), this restores the private phone number and
+  // the account link too, and keeps the same id. Returns undefined when there is no usable stash
+  // (none was recorded, it expired, or it was already used), so the caller falls back to the payload.
+  const fromStash = async (m: Member, restoreId: number | undefined): Promise<Member | undefined> => {
+    if (restoreId === undefined || !src.stash) return undefined
+    let result: StaffStashRestored
+    try {
+      result = await api<StaffStashRestored>(src.stash(restoreId), json('POST', {}))
+    } catch (e) {
+      if (e instanceof ApiError && (e.status === 404 || e.status === 410)) return undefined
+      throw e
+    }
+    await refresh()
+    const skipped = result.skipped_relationships
+    if (skipped.length > 0) {
+      throw new Error(
+        `${m.first_name} was restored, but ${skipped.length} of ${skipped.length + result.restored_relationships} ` +
+          `relationships could not be: ${skipped.map((s) => `${s.link} (${s.reason})`).join('; ')}.`,
+      )
+    }
+    return result.member
+  }
+
+  const member = async ({ member: m, relationships, restoreId }: MemberSnapshot): Promise<Member> => {
+    const exact = await fromStash(m, restoreId)
+    if (exact) return exact
     const created = await api<Member>(
-      ENDPOINTS.membersCreate,
+      src.membersCreate,
       json('POST', {
         tree: treeId,
         ...(m.user !== null && m.user !== undefined ? { user: m.user } : {}),
@@ -361,7 +436,7 @@ export function useRestore(treeId: number) {
     const results = await Promise.allSettled(
       relationships.map((r) =>
         api<Relationship>(
-          ENDPOINTS.relationshipsCreate,
+          src.relationshipsCreate,
           json('POST', {
             tree: treeId,
             member_1: swap(r.member_1),

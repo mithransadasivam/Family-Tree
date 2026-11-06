@@ -19,6 +19,12 @@ export const ENDPOINTS = {
   staffTrees: (q: string, offset: number, limit: number) =>
     `/api/staff/trees/?q=${encodeURIComponent(q)}&offset=${offset}&limit=${limit}`,
   staffTree: (id: number) => `/api/staff/trees/${id}/`,
+  staffMembersCreate: (treeId: number) => `/api/staff/trees/${treeId}/members/`,
+  staffMember: (treeId: number, id: number) => `/api/staff/trees/${treeId}/members/${id}/`,
+  staffRestores: (treeId: number) => `/api/staff/trees/${treeId}/restores/`,
+  staffRestore: (treeId: number, stashId: number) => `/api/staff/trees/${treeId}/restores/${stashId}/`,
+  staffRelationshipsCreate: (treeId: number) => `/api/staff/trees/${treeId}/relationships/`,
+  staffRelationship: (treeId: number, id: number) => `/api/staff/trees/${treeId}/relationships/${id}/`,
   trees: '/api/family-trees/',
   tree: (id: number) => `/api/family-trees/${id}/`,
   leaveTree: (id: number) => `/api/family-trees/${id}/leave/`,

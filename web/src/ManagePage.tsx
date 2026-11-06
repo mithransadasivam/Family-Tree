@@ -174,7 +174,19 @@ export default function ManagePage() {
         <ul className="timeline">
           {history.data?.map((h) => (
             <li key={h.id}>
-              <div>{h.change_description}</div>
+              <div>
+                {h.by_staff && (
+                  <span className="chip staff-chip" title="Made by site staff, not by a member of this family">
+                    Staff
+                  </span>
+                )}
+                {h.by_staff ? h.change_description.replace(/^Staff edit: /, '') : h.change_description}
+              </div>
+              {h.by_staff && h.field_name && (
+                <div className="muted">
+                  {h.old_value || '(empty)'} → {h.new_value || '(empty)'}
+                </div>
+              )}
               <div className="muted">
                 {h.edited_by ? h.edited_by.first_name || h.edited_by.email : 'Former member'} · {fmt(h.edited_at)}
               </div>

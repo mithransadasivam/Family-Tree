@@ -247,7 +247,12 @@ export default function DetailPanel({
               // mutateAsync, not mutate(..., {onSuccess}): this panel unmounts the moment the person
               // leaves the list, and callbacks passed to mutate() are dropped once that happens.
               // Failures show through `del.error`.
-              del.mutateAsync(member.id).then(() => onDeleted(snapshot), () => undefined)
+              // A staff delete also answers with the id of the server-side stash that can restore the
+              // person exactly; keep it with the snapshot so Undo can use it.
+              del.mutateAsync(member.id).then(
+                (res) => onDeleted({ ...snapshot, restoreId: res?.restore_id }),
+                () => undefined,
+              )
             }}
           >
             <Trash size={15} /> Delete

@@ -1992,3 +1992,18 @@ button.profile-chip {
   font-size: 0.85rem;
   text-align: center;
 }
+.staff-banner.editing {
+  border-color: color-mix(in srgb, var(--danger) 60%, transparent);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* A change a superuser made through staff edit mode, in a family's history. */
+.chip.staff-chip {
+  margin-right: 8px;
+  padding: 1px 9px;
+  color: var(--gold);
+  border-color: color-mix(in srgb, var(--gold) 45%, transparent);
+  background: color-mix(in srgb, var(--gold) 12%, transparent);
+}

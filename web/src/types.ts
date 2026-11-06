@@ -39,6 +39,24 @@ export interface StaffTreeList {
   results: StaffTree[]
 }
 
+/** A person staff deleted who can still be restored: names and dates only, never their data. */
+export interface StaffStash {
+  id: number
+  name: string
+  deleted_at: string
+  expires_at: string
+  deleted_by: string | null
+  relationship_count: number
+}
+
+export interface StaffStashRestored {
+  member: Member
+  restored_relationships: number
+  skipped_relationships: { link: string; reason: string }[]
+  /** 'dropped': the account was no longer in the family (or already on another card), so it was not relinked. */
+  account_link: 'restored' | 'dropped' | 'none'
+}
+
 export interface StaffTreeDetail {
   tree: StaffTree
   members: Member[]
@@ -76,9 +94,14 @@ export interface EditHistory {
   id: number
   entity_type: string
   entity_id: number
+  field_name?: string
+  old_value?: string
+  new_value?: string
   change_description: string
   edited_by: User | null
   edited_at: string
+  /** A superuser made this change through staff edit mode (the description also starts "Staff edit: "). */
+  by_staff?: boolean
 }
 
 export type Gender = '' | 'male' | 'female' | 'other'
