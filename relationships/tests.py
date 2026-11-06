@@ -8,7 +8,7 @@ from django.test import TestCase, TransactionTestCase
 from config.testing import client_for, join, make_tree, make_user
 from family_members.models import FamilyMember
 from family_trees.models import FamilyTree
-from relationships import views as rel_views
+from relationships import services as rel_services
 from relationships.models import Relationship, RelationshipType
 
 
@@ -35,7 +35,7 @@ class RelationshipWriteLockTests(TestCase):
     def record_write_ordering(self):
         events = []
         real_lock = QuerySet.select_for_update
-        real_check = rel_views.check_relationship
+        real_check = rel_services.check_relationship
 
         def lock(qs, *args, **kwargs):
             events.append(('lock', qs.model))
@@ -46,7 +46,7 @@ class RelationshipWriteLockTests(TestCase):
             return real_check(*args, **kwargs)
 
         return events, mock.patch.object(QuerySet, 'select_for_update', autospec=True, side_effect=lock), \
-            mock.patch.object(rel_views, 'check_relationship', side_effect=check)
+            mock.patch.object(rel_services, 'check_relationship', side_effect=check)
 
     def assertLockedThenChecked(self, events):
         self.assertIn(('lock', FamilyTree), events)
@@ -181,7 +181,7 @@ class OnePairOneRelationshipConstraintTests(TestCase):
     def test_api_turns_a_constraint_hit_into_a_clean_400_not_a_500(self):
         # Simulate the application-level check missing a duplicate (e.g. a lost race).
         client = client_for(self.user)
-        with mock.patch.object(rel_views, 'check_relationship', return_value=None):
+        with mock.patch.object(rel_services, 'check_relationship', return_value=None):
             res = client.post('/api/relationships/', {
                 'tree': self.tree.id, 'member_1': self.b.id, 'member_2': self.a.id,
                 'relationship_type': self.brother.id}, format='json')

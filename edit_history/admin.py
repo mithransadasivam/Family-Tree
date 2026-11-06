@@ -11,8 +11,8 @@ class EditHistoryAdmin(admin.ModelAdmin):
     site are not written to it (they are staff actions, not family edits).
     """
 
-    list_display = ('edited_at', 'tree', 'entity_type', 'change_description', 'edited_by')
-    list_filter = ('entity_type', 'tree')
+    list_display = ('edited_at', 'tree', 'entity_type', 'change_description', 'edited_by', 'by_staff')
+    list_filter = ('by_staff', 'entity_type', 'tree')
     search_fields = ('change_description', 'tree__tree_name', 'edited_by__email')
     date_hierarchy = 'edited_at'
     list_select_related = ('tree', 'edited_by')

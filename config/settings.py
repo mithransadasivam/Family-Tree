@@ -99,6 +99,10 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
 }
 
+# How long a person a superuser deleted can still be restored from the staff-only stash
+# (family_members/restore.py). Expired stashes are purged; see the purge_staff_restores command.
+STAFF_RESTORE_RETENTION_DAYS = int(os.getenv('STAFF_RESTORE_RETENTION_DAYS', '30'))
+
 # Web client origins (comma-separated), e.g. https://kinship.vercel.app. The Android app is
 # not a browser, so it is unaffected by CORS.
 WEB_ORIGINS = [

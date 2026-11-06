@@ -25,7 +25,7 @@ from family_codes.models import FamilyCode
 from family_members.models import FamilyMember
 from family_trees.models import TreeMember
 from join_requests.models import JoinRequest
-from relationships import views as rel_views
+from relationships import services as rel_services
 from relationships.models import Relationship, RelationshipType
 
 CONTROL_ROUNDS = 10
@@ -73,7 +73,7 @@ def no_locks():
 
 
 def slow_check():
-    return mock.patch.object(rel_views, "check_relationship", linger(rel_views.check_relationship))
+    return mock.patch.object(rel_services, "check_relationship", linger(rel_services.check_relationship))
 
 
 CONSTRAINT_HIT = 599
@@ -82,8 +82,8 @@ CONSTRAINT_HIT = 599
 def constraint_hits_visible():
     """The one-link-per-pair DB constraint (see migration 0002) normally turns a lost race into an
     ordinary 400. Reaching it means the lock failed to keep requests apart, so surface it as 599."""
-    from rest_framework.response import Response
-    return mock.patch.object(rel_views, "PAIR_TAKEN_RESPONSE", lambda: Response({"error": "constraint"}, status=CONSTRAINT_HIT))
+    from utils.errors import ServiceError
+    return mock.patch.object(rel_services, "pair_taken_error", lambda: ServiceError({"error": "constraint"}, CONSTRAINT_HIT))
 
 
 def slow_join_save():

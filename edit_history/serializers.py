@@ -11,5 +11,5 @@ class EditHistorySerializer(serializers.ModelSerializer):
         fields = [
             'id', 'entity_type', 'entity_id', 'field_name',
             'old_value', 'new_value', 'change_description',
-            'edited_by', 'edited_at'
+            'edited_by', 'edited_at', 'by_staff'
         ]

@@ -2,32 +2,16 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import FamilyMember
-from .serializers import FamilyMemberSerializer, can_see_phone
-from family_trees.models import FamilyTree, TreeMember
+from .serializers import FamilyMemberSerializer
+from family_trees.models import TreeMember
 from users.models import User
-from edit_history.utils import log_edit
-from relationships.rules import CHILD_TYPES, PARENT_TYPES
+from utils.errors import ServiceError, error_response
+from . import services
 
 
 def get_current_user(request):
     user_id = request.auth.payload.get('user_id')
     return User.objects.get(id=user_id)
-
-
-# A person who is the parent / grandparent of someone is a root of the tree: deleting them would
-# orphan their descendants (see relationships/rules.py for how the types are read).
-
-
-def has_descendants(member):
-    from relationships.models import Relationship
-    return (
-        Relationship.objects.filter(
-            member_1=member, relationship_type__type_name__in=PARENT_TYPES
-        ).exists()
-        or Relationship.objects.filter(
-            member_2=member, relationship_type__type_name__in=CHILD_TYPES
-        ).exists()
-    )
 
 
 class FamilyMemberListView(APIView):
@@ -46,13 +30,11 @@ class FamilyMemberListView(APIView):
         tree_id = request.data.get('tree')
         if not TreeMember.objects.filter(tree_id=tree_id, tree__is_active=True, user=user).exists():
             return Response({'error': 'Not a member of this tree'}, status=status.HTTP_403_FORBIDDEN)
-        serializer = FamilyMemberSerializer(data=request.data, context={'viewer': user})
-        if serializer.is_valid():
-            member = serializer.save(created_by=user)
-            tree = FamilyTree.objects.get(id=tree_id)
-            log_edit(tree, 'family_member', member.id, user, f'Added member: {member.first_name} {member.last_name}')
-            return Response(FamilyMemberSerializer(member, context={'viewer': user}).data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            member = services.create_member(tree_id, request.data, user)
+        except ServiceError as e:
+            return error_response(e)
+        return Response(FamilyMemberSerializer(member, context={'viewer': user}).data, status=status.HTTP_201_CREATED)
 
 
 class FamilyMemberDetailView(APIView):
@@ -77,17 +59,11 @@ class FamilyMemberDetailView(APIView):
         member, error = self.get_member(member_id, user)
         if error:
             return error
-        old_name = f'{member.first_name} {member.last_name}'
-        data = request.data
-        if not can_see_phone(member, user):
-            # Someone who cannot see a private number must not overwrite it or make it public.
-            data = {k: v for k, v in request.data.items() if k not in ('phone', 'phone_public')}
-        serializer = FamilyMemberSerializer(member, data=data, partial=True, context={'viewer': user})
-        if serializer.is_valid():
-            serializer.save()
-            log_edit(member.tree, 'family_member', member.id, user, f'Updated member: {old_name}')
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            member = services.update_member(member, request.data, user)
+        except ServiceError as e:
+            return error_response(e)
+        return Response(FamilyMemberSerializer(member, context={'viewer': user}).data)
 
     def delete(self, request, member_id):
         user = get_current_user(request)
@@ -97,14 +73,8 @@ class FamilyMemberDetailView(APIView):
         # Any member may add and edit people, but removing one is the tree owner's call.
         if member.tree.owner_id != user.id:
             return Response({'error': 'Only the tree owner can delete a person'}, status=status.HTTP_403_FORBIDDEN)
-        if has_descendants(member):
-            return Response(
-                {'error': f'{member.first_name} has children in the family and cannot be deleted. '
-                          'Remove their children (or those relationships) first.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        name = f'{member.first_name} {member.last_name}'
-        tree = member.tree
-        member.delete()
-        log_edit(tree, 'family_member', member_id, user, f'Deleted member: {name}')
+        try:
+            services.delete_member(member, user)
+        except ServiceError as e:
+            return error_response(e)
         return Response({'message': 'Member deleted'}, status=status.HTTP_200_OK)

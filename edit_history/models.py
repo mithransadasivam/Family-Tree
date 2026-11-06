@@ -18,6 +18,10 @@ class EditHistory(models.Model):
         related_name='edit_history'
     )
     edited_at = models.DateTimeField(auto_now_add=True)
+    by_staff = models.BooleanField(
+        default=False,
+        help_text='True when a superuser made this change through the staff edit mode.',
+    )
 
     class Meta:
         db_table = 'edit_history'
