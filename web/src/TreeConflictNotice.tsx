@@ -15,6 +15,13 @@ export default function TreeConflictNotice({ conflicts }: { conflicts: IgnoredLi
         {conflicts.map((c) => (
           <li key={c.id}>
             <b>{c.reads}</b> — {c.why}.
+            {c.alsoCheck.length > 0 && (
+              <>
+                {' '}
+                It conflicts with: {c.alsoCheck.join('; ')}. If this link is right and one of those is wrong, fix
+                that one instead.
+              </>
+            )}
           </li>
         ))}
       </ul>

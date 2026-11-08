@@ -96,6 +96,31 @@ class TreeGenerationsTest {
     }
 
     @Test
+    fun productionShapeWithNoGendersSetsAsideTheOlderLinkAndDrawsTheFamilyRightWayUp() {
+        // Real ids from the "Siva sankar" tree: nobody has a gender, and row 134 (old Android build)
+        // is older than row 140.
+        val ms = listOf(
+            person(44, "Sivasankaran S"), person(45, "Amutha Siva"), person(50, "Jayalakshmi"),
+            person(58, "Sivananthan"), person(60, "Pooja"), person(61, "Teja"), person(62, "Inba")
+        )
+        fun r(id: Int, a: Int, t: String, b: Int) = Relationship(id, 13, a, b, 0, t, "", "")
+        val rels = listOf(
+            r(91, 45, "Spouse", 44), r(94, 62, "Daughter", 44), r(95, 61, "Daughter", 44), r(96, 60, "Daughter", 44),
+            r(132, 58, "Spouse", 50), r(134, 44, "Mother", 50), r(140, 44, "Son", 58)
+        )
+        for (order in listOf(rels, rels.reversed())) {
+            val layout = layoutOf(ms, order)
+            assertEquals(listOf(134), layout.ignoredLinks.map { it.id })
+            assertEquals(listOf("Sivasankaran S is the Son of Sivananthan"), layout.ignoredLinks.single().alsoCheck)
+            assertEquals(
+                mapOf("Sivananthan" to 0, "Jayalakshmi" to 0, "Sivasankaran S" to 1, "Amutha Siva" to 1,
+                    "Pooja" to 2, "Teja" to 2, "Inba" to 2),
+                rowsByName(ms, order)
+            )
+        }
+    }
+
+    @Test
     fun theStoredRelationshipsAreNotTouched() {
         val b = build((1..7).toList(), backwards)
         val before = b.rels.map { Triple(it.id, it.member_1, it.member_2) }

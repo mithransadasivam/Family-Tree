@@ -62,9 +62,14 @@ def audit_tree(rels):
         t = r.relationship_type.type_name
         e = ancestor_edge(t, r.member_1_id, r.member_2_id)
         is_parent_row = e in bad_edges if e else False
-        # A couple row is part of the knot when both partners are on it.
-        is_couple_row = bool(spouse_pair(t, r.member_1_id, r.member_2_id)) and \
-            r.member_1_id in people and r.member_2_id in people
+        # A couple row is part of the knot only if the knot loosens without it: a spouse link that
+        # merely sits next to the contradiction is not a cause.
+        is_couple_row = False
+        c = spouse_pair(t, r.member_1_id, r.member_2_id)
+        if c and r.member_1_id in people and r.member_2_id in people:
+            rest = list(couples)
+            rest.remove(c)
+            is_couple_row = generation_conflicts(edges, rest)[0] != bad_edges
         if is_parent_row or is_couple_row:
             loops.append(row_info(r))
 

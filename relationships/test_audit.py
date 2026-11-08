@@ -22,6 +22,8 @@ class AuditRelationshipsTests(TestCase):
             mk(self.tree, 'Sivasankaran', 'male')
         self.link(self.tree, self.s, 'Spouse', self.j)
         self.link(self.tree, self.sk, 'Son', self.s)
+        amutha = mk(self.tree, 'Amutha', 'female')
+        self.link(self.tree, amutha, 'Spouse', self.sk)  # next to the knot, not a cause of it
         self.bad = self.link(self.tree, self.sk, 'Mother', self.j)  # stored backwards (row 134)
         a, b = mk(self.clean, 'A', 'male'), mk(self.clean, 'B', 'female')
         self.link(self.clean, a, 'Father', b)
@@ -42,7 +44,10 @@ class AuditRelationshipsTests(TestCase):
         self.assertEqual(t['tree_name'], 'Siva Sankar')
         loop_ids = {r['id'] for r in t['generation_contradictions']}
         self.assertIn(self.bad.id, loop_ids)
-        self.assertEqual(len(loop_ids), 3)  # the spouse row and both parent rows form the knot
+        # The Sivananthan-Jayalakshmi spouse row and both parent rows form the knot; Amutha's spouse
+        # row only sits next to it and is not listed.
+        self.assertEqual(len(loop_ids), 3)
+        self.assertNotIn('Amutha', ' '.join(r['reads'] for r in t['generation_contradictions']))
 
     def test_gender_row_is_flagged_as_likely_backwards(self):
         g = self.run_audit()['report'][0]['gender_contradictions']

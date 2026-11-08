@@ -75,6 +75,35 @@ describe('the reported family (row 134 stored backwards)', () => {
   })
 })
 
+describe('production shape: no genders recorded, the wrong link is the older one', () => {
+  // Real ids from the "Siva sankar" tree. Row 134 (old Android build) is older than row 140.
+  const ms = [person(44, 'Sivasankaran S'), person(45, 'Amutha Siva'), person(50, 'Jayalakshmi'), person(58, 'Sivananthan'),
+    person(60, 'Pooja'), person(61, 'Teja'), person(62, 'Inba')]
+  const withIds = (ids: [number, number, string, number][]) =>
+    ids.map(([id, a, t, b]) => ({ id, tree: 13, member_1: a, member_2: b, relationship_type: 0, relationship_type_name: t }) as Relationship)
+  const rels = withIds([[91, 45, 'Spouse', 44], [94, 62, 'Daughter', 44], [95, 61, 'Daughter', 44], [96, 60, 'Daughter', 44],
+    [132, 58, 'Spouse', 50], [134, 44, 'Mother', 50], [140, 44, 'Son', 58]])
+
+  it('sets aside the older link, draws the family the right way up, and says what else to check', () => {
+    const { conflicts } = computeTreeLayout(ms, rels)
+    expect(conflicts.map((c) => c.id)).toEqual([134])
+    expect(conflicts[0].alsoCheck).toEqual(['Sivasankaran S is the Son of Sivananthan'])
+    expect(Object.fromEntries(rowsByName(ms, rels))).toEqual({
+      Sivananthan: 0, Jayalakshmi: 0, 'Sivasankaran S': 1, 'Amutha Siva': 1, Pooja: 2, Teja: 2, Inba: 2,
+    })
+  })
+
+  it('does the same whatever order the links arrive in', () => {
+    expect(computeTreeLayout(ms, [...rels].reverse()).conflicts.map((c) => c.id)).toEqual([134])
+  })
+
+  it('names the other conflicting link in the notice', () => {
+    const { conflicts } = computeTreeLayout(ms, rels)
+    render(<TreeConflictNotice conflicts={conflicts} />)
+    expect(screen.getByRole('alert').textContent).toContain('conflicts with: Sivasankaran S is the Son of Sivananthan')
+  })
+})
+
 describe('generationConflicts', () => {
   const conflicts = (rels: Relationship[]) => generationConflicts(buildGraph(rels))
   it('sees a contradiction that only shows up through a couple', () => {
@@ -204,7 +233,7 @@ describe('TreeConflictNotice', () => {
   it('says which link is not drawn, and renders nothing when there is no conflict', () => {
     const { container, rerender } = render(<TreeConflictNotice conflicts={[]} />)
     expect(container.innerHTML).toBe('')
-    rerender(<TreeConflictNotice conflicts={[{ id: 134, reads: 'Ann is the Mother of Bob', why: 'it contradicts the other links', memberIds: [1, 2] }]} />)
+    rerender(<TreeConflictNotice conflicts={[{ id: 134, reads: 'Ann is the Mother of Bob', why: 'it contradicts the other links', alsoCheck: [], memberIds: [1, 2] }]} />)
     expect(screen.getByRole('alert').textContent).toContain('Ann is the Mother of Bob')
   })
 })

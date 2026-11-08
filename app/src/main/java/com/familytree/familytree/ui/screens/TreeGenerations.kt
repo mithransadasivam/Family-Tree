@@ -25,7 +25,9 @@ internal class IgnoredLink(
     /** "Ann is the Mother of Ben": the way the stored link reads. */
     val reads: String,
     /** Why this one was chosen. */
-    val why: String
+    val why: String,
+    /** The other links in the same conflict. Any one of them could be the one entered wrongly. */
+    val alsoCheck: List<String> = emptyList()
 )
 
 /** (ancestor, descendant) for a link that makes member_1 a parent/child of member_2, else null. */
@@ -201,9 +203,11 @@ private fun contradictsGender(rel: Relationship, byId: Map<Int, FamilyMember>): 
 
 /**
  * The relationships to DRAW. If the links contradict each other about generations, set aside one
- * parent link at a time - one that contradicts its person's recorded gender first (the usual sign
- * of a link stored backwards), otherwise the one that sorts last by how it reads, so the choice
- * never depends on ids - until the rest is consistent. Nothing is deleted or edited.
+ * parent link at a time until the rest is consistent. The pick: a link that contradicts its
+ * person's recorded gender first (the usual sign of one stored backwards); with no gender evidence,
+ * the OLDEST link, because links saved by older app versions (before the direction fix of
+ * 2026-11-04) are the ones known to be backwards. Ties fall to how the link reads, never to member
+ * ids. Nothing is deleted or edited.
  */
 internal fun drawableRelationships(
     members: List<FamilyMember>,
@@ -216,16 +220,21 @@ internal fun drawableRelationships(
     repeat(relationships.size + 1) {
         val bad = generationConflictEdges(kept, ids)
         if (bad.isEmpty()) return kept to ignored
-        val victim = kept
+        val cands = kept
             .filter { r -> parentEdgeOf(r)?.let { it in bad } == true }
             .map { Triple(it, contradictsGender(it, byId), readsOf(it, byId)) }
-            .sortedWith(compareByDescending<Triple<Relationship, Boolean, String>> { it.second }.thenByDescending { it.third })
-            .firstOrNull() ?: return kept to ignored
+            .sortedWith(
+                compareByDescending<Triple<Relationship, Boolean, String>> { it.second }
+                    .thenBy { it.first.id }
+                    .thenBy { it.third }
+            )
+        val victim = cands.firstOrNull() ?: return kept to ignored
         ignored += IgnoredLink(
             victim.first.id,
             victim.third,
             if (victim.second) "the person's recorded gender does not match this link, so it was probably entered the wrong way round"
-            else "it contradicts the other links"
+            else "it contradicts the other links and is the oldest of them, so it is the likeliest to have been entered the wrong way round",
+            cands.drop(1).map { it.third }
         )
         kept = kept.filter { it !== victim.first }
     }

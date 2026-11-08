@@ -199,6 +199,8 @@ export interface IgnoredLink {
   reads: string
   /** Why this one was chosen. */
   why: string
+  /** The other links in the same conflict. Any one of them could be the one entered wrongly. */
+  alsoCheck: string[]
   memberIds: [number, number]
 }
 
@@ -219,9 +221,11 @@ function contradictsGender(r: Relationship, byId: Map<number, Member>) {
 
 /**
  * The relationship graph to DRAW. If the links contradict each other about generations, set aside
- * one parent link at a time - one that contradicts its person's recorded gender first (the usual
- * sign of a link stored backwards), otherwise the one that sorts last by how it reads, so the
- * choice never depends on ids - until the rest is consistent. Nothing is deleted or edited.
+ * one parent link at a time until the rest is consistent. The pick: a link that contradicts its
+ * person's recorded gender first (the usual sign of one stored backwards); with no gender evidence,
+ * the OLDEST link, because links saved by older app versions (before the direction fix of
+ * 2026-11-04) are the ones known to be backwards. Ties fall to how the link reads, never to member
+ * ids. Nothing is deleted or edited.
  */
 export function drawableGraph(rels: Relationship[], members: Member[]) {
   const byId = new Map(members.map((m) => [m.id, m]))
@@ -238,7 +242,10 @@ export function drawableGraph(rels: Relationship[], members: Member[]) {
         return e !== null && bad.edges.has(`${e[0]}>${e[1]}`)
       })
       .map((r) => ({ r, gender: contradictsGender(r, byId), text: reads(r, byId) }))
-      .sort((a, b) => Number(b.gender) - Number(a.gender) || (a.text < b.text ? 1 : a.text > b.text ? -1 : 0))
+      .sort(
+        (a, b) =>
+          Number(b.gender) - Number(a.gender) || a.r.id - b.r.id || (a.text < b.text ? -1 : a.text > b.text ? 1 : 0),
+      )
     if (!cands.length) return { graph, ignored, kept }
     const { r, gender, text } = cands[0]
     ignored.push({
@@ -247,7 +254,8 @@ export function drawableGraph(rels: Relationship[], members: Member[]) {
       memberIds: [r.member_1, r.member_2],
       why: gender
         ? 'the person’s recorded gender does not match this link, so it was probably entered the wrong way round'
-        : 'it contradicts the other links',
+        : 'it contradicts the other links and is the oldest of them, so it is the likeliest to have been entered the wrong way round',
+      alsoCheck: cands.slice(1).map((c) => c.text),
     })
     kept = kept.filter((x) => x !== r)
   }

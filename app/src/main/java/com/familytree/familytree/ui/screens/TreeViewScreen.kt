@@ -1145,6 +1145,13 @@ private fun TreeConflictNotice(links: List<IgnoredLink>, modifier: Modifier = Mo
             )
             links.forEach { link ->
                 Text("• ${link.reads} - ${link.why}.", fontSize = 12.sp, color = TextPrimary)
+                if (link.alsoCheck.isNotEmpty()) {
+                    Text(
+                        "It conflicts with: ${link.alsoCheck.joinToString("; ")}. If this link is right and one of those is wrong, fix that one instead.",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+                }
             }
             Text(
                 "Open the people involved and edit or remove the link; the tree redraws once it is fixed.",
