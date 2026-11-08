@@ -2,6 +2,7 @@ package com.familytree.familytree.ui.screens
 
 import android.widget.Toast
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -456,23 +457,23 @@ fun TreeViewScreen(navController: NavController, treeId: Int) {
 // Relationship classification
 // ---------------------------------------------------------------------------------------
 
-private val spouseRelTypes = setOf("Spouse", "Husband", "Wife", "Partner", "Fiance", "Fiancee")
+internal val spouseRelTypes = setOf("Spouse", "Husband", "Wife", "Partner", "Fiance", "Fiancee")
 
 // relationship_type_name describes what member_1 IS to member_2 (e.g. "Father" means
 // member_1 is member_2's father).
-private val bioParentTypes = setOf("Father", "Mother", "Grandfather", "Grandmother")
-private val bioChildTypes = setOf("Son", "Daughter", "Grandson", "Granddaughter")
-private val stepParentTypes = setOf("Stepfather", "Stepmother", "Step Father", "Step Mother")
-private val stepChildTypes = setOf("Stepson", "Stepdaughter", "Step Son", "Step Daughter")
+internal val bioParentTypes = setOf("Father", "Mother", "Grandfather", "Grandmother")
+internal val bioChildTypes = setOf("Son", "Daughter", "Grandson", "Granddaughter")
+internal val stepParentTypes = setOf("Stepfather", "Stepmother", "Step Father", "Step Mother")
+internal val stepChildTypes = setOf("Stepson", "Stepdaughter", "Step Son", "Step Daughter")
 private val stepSiblingTypes = setOf("Step Brother", "Step Sister")
-private val adoptedChildTypes = setOf("Adopted Son", "Adopted Daughter")
+internal val adoptedChildTypes = setOf("Adopted Son", "Adopted Daughter")
 private val adoptedSiblingTypes = setOf("Adopted Brother", "Adopted Sister")
 
-private enum class RelCategory { BIO, STEP, ADOPTED }
+internal enum class RelCategory { BIO, STEP, ADOPTED }
 
 private data class ParentEdge(val parentId: Int, val childId: Int, val category: RelCategory)
 
-private class TreeUnit(val id: String, val partners: List<Int>, val children: List<Int>)
+internal class TreeUnit(val id: String, val partners: List<Int>, val children: List<Int>)
 
 private sealed class RenderNode {
     var width: Float = 0f
@@ -486,13 +487,15 @@ private class LeafNode(val personId: Int) : RenderNode()
 // width/position of its own - it just lets that branch's connector look up their true position.
 private class RefNode(val personId: Int) : RenderNode()
 
-private class TreeLayoutResult(
+internal class TreeLayoutResult(
     val positions: Map<Int, Offset>,
     val genOfPerson: Map<Int, Int>,
     val units: List<TreeUnit>,
     val couples: List<Pair<Int, Int>>,
     val siblingLines: List<Triple<Int, Int, RelCategory>>,
-    val childCategory: Map<Int, RelCategory>
+    val childCategory: Map<Int, RelCategory>,
+    // Links left out of the drawing because they contradict the others (see TreeGenerations.kt).
+    val ignoredLinks: List<IgnoredLink> = emptyList()
 )
 
 private class TreeBounds(val minX: Float, val minY: Float, val width: Float, val height: Float)
@@ -506,7 +509,7 @@ private class TreeBounds(val minX: Float, val minY: Float, val width: Float, val
 // Each person is placed exactly once.
 // ---------------------------------------------------------------------------------------
 
-private fun buildTreeLayout(
+internal fun buildTreeLayout(
     members: List<FamilyMember>,
     relationships: List<Relationship>,
     cardWidthOf: Map<Int, Float>,
@@ -516,6 +519,13 @@ private fun buildTreeLayout(
     familyUnitGap: Float,
     topMargin: Float
 ): TreeLayoutResult {
+    // Rows come from the links alone (a generation per person), so they cannot depend on the order
+    // people or links were entered in. If links contradict each other (usually one stored the wrong
+    // way round), the likeliest culprit is left out of the DRAWING and reported in ignoredLinks.
+    val (drawable, ignoredLinks) = drawableRelationships(members, relationships)
+    val generationOf = assignGenerations(drawable, members.map { it.id })
+    val relationships = drawable
+
     val parentEdges = mutableListOf<ParentEdge>()
     relationships.forEach { rel ->
         val name = rel.relationship_type_name
@@ -679,8 +689,14 @@ private fun buildTreeLayout(
     val positions = mutableMapOf<Int, Offset>()
     val genOfPerson = mutableMapOf<Int, Int>()
 
-    fun place(node: RenderNode, leftEdge: Float, depth: Int) {
+    fun place(node: RenderNode, leftEdge: Float) {
         val centerX = leftEdge + node.width / 2f
+        // The row is the person's solved generation, not how deep this branch happens to be.
+        val depth = when (node) {
+            is UnitNode -> generationOf[node.unit.partners.first()] ?: 0
+            is LeafNode -> generationOf[node.personId] ?: 0
+            is RefNode -> 0
+        }
         val y = topMargin + depth * vSpacing
         when (node) {
             is UnitNode -> {
@@ -701,7 +717,7 @@ private fun buildTreeLayout(
                         (spacedChildren.size - 1) * siblingGap
                     var cursor = centerX - totalChildWidth / 2f
                     spacedChildren.forEach { child ->
-                        place(child, cursor, depth + 1)
+                        place(child, cursor)
                         cursor += child.width + siblingGap
                     }
                 }
@@ -726,11 +742,11 @@ private fun buildTreeLayout(
     // down every row, not just at the top.
     var cursor = 0f
     forest.forEach { root ->
-        place(root, cursor, 0)
+        place(root, cursor)
         cursor += root.width + familyUnitGap
     }
 
-    return TreeLayoutResult(positions, genOfPerson, unitsList, couples, siblingLines, childCategory)
+    return TreeLayoutResult(positions, genOfPerson, unitsList, couples, siblingLines, childCategory, ignoredLinks)
 }
 
 private fun computeBounds(positions: Map<Int, Offset>, cardWidthOf: Map<Int, Float>, cardHeight: Float): TreeBounds {
@@ -1086,6 +1102,54 @@ fun FamilyTreeCanvas(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(16.dp)
+            )
+
+            if (layout.ignoredLinks.isNotEmpty()) {
+                TreeConflictNotice(
+                    links = layout.ignoredLinks,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 12.dp, end = 72.dp, bottom = 12.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Shown over the tree when some links contradict each other (usually one saved the wrong way
+ * round), so the picture is not silently wrong. The data is not changed: the link named here is
+ * only left out of the drawing until someone edits or removes it.
+ */
+@Composable
+private fun TreeConflictNotice(links: List<IgnoredLink>, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(10.dp),
+        color = Accent.copy(alpha = 0.16f),
+        border = BorderStroke(1.dp, Accent),
+        shadowElevation = 2.dp
+    ) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Text(
+                "Some relationships in this family contradict each other.",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary
+            )
+            Text(
+                if (links.size == 1) "To keep the tree readable, this link is not drawn:"
+                else "To keep the tree readable, these links are not drawn:",
+                fontSize = 12.sp,
+                color = TextSecondary
+            )
+            links.forEach { link ->
+                Text("• ${link.reads} - ${link.why}.", fontSize = 12.sp, color = TextPrimary)
+            }
+            Text(
+                "Open the people involved and edit or remove the link; the tree redraws once it is fixed.",
+                fontSize = 12.sp,
+                color = TextSecondary
             )
         }
     }

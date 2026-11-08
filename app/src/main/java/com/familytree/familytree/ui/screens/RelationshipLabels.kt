@@ -58,12 +58,12 @@ private val genderedInverse: Map<String, Pair<String, String>> = mapOf(
 )
 
 // Types that tell us the gender of member_1 (the person being described).
-private val maleTypes = setOf(
+internal val maleTypes = setOf(
     "Father", "Stepfather", "Step Father", "Grandfather", "Son", "Stepson", "Step Son", "Adopted Son",
     "Grandson", "Brother", "Step Brother", "Adopted Brother", "Husband", "Fiance", "Uncle",
     "Father-in-Law", "Son-in-Law", "Brother-in-Law",
 )
-private val femaleTypes = setOf(
+internal val femaleTypes = setOf(
     "Mother", "Stepmother", "Step Mother", "Grandmother", "Daughter", "Stepdaughter", "Step Daughter",
     "Adopted Daughter", "Granddaughter", "Sister", "Step Sister", "Adopted Sister", "Wife", "Fiancee",
     "Aunt", "Mother-in-Law", "Daughter-in-Law", "Sister-in-Law",
