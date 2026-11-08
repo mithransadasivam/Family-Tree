@@ -2007,3 +2007,19 @@ button.profile-chip {
   border-color: color-mix(in srgb, var(--gold) 45%, transparent);
   background: color-mix(in srgb, var(--gold) 12%, transparent);
 }
+
+/* Some links contradict each other: the tree says so instead of silently drawing it wrong. */
+.tree-notice {
+  margin: 0 0 10px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--gold) 55%, transparent);
+  border-radius: var(--r-md, 12px);
+  background: color-mix(in srgb, var(--gold) 12%, transparent);
+  color: var(--text, inherit);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.tree-notice ul {
+  margin: 6px 0;
+  padding-left: 20px;
+}

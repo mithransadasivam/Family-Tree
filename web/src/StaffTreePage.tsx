@@ -8,6 +8,7 @@ import RecentlyDeleted from './RecentlyDeleted'
 import Rings from './Rings'
 import { staffSource, TreeSourceContext } from './treeSource'
 import { useTreeLayout } from './treeLayout'
+import TreeConflictNotice from './TreeConflictNotice'
 import TreeView from './TreeView'
 import UndoBar, { type Undoable } from './UndoBar'
 import { fullName, type Member, type Relationship } from './types'
@@ -35,7 +36,7 @@ export default function StaffTreePage() {
 
 function StaffTreeEditor({ treeId }: { treeId: number }) {
   const detail = useStaffTree(treeId)
-  const { memberList, byId, forest, generations, genders } = useTreeLayout(
+  const { memberList, byId, forest, generations, genders, conflicts } = useTreeLayout(
     detail.data?.members,
     detail.data?.relationships,
   )
@@ -154,6 +155,7 @@ function StaffTreeEditor({ treeId }: { treeId: number }) {
           </div>
         )}
 
+        {tree && <TreeConflictNotice conflicts={conflicts} />}
         {tree && forest.length > 0 && (
           <TreeView forest={forest} genders={genders} selectedId={selectedId} onSelect={setSelectedId} focus={focus} />
         )}

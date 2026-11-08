@@ -7,6 +7,7 @@ import PosterDialog from './PosterDialog'
 import { isTreeOwner } from './permissions'
 import { useMe, useMembers, useRelationships, useRestore, useTrees, type MemberSnapshot } from './queries'
 import Rings from './Rings'
+import TreeConflictNotice from './TreeConflictNotice'
 import TreeView from './TreeView'
 import UndoBar, { type Undoable } from './UndoBar'
 import { useTreeLayout } from './treeLayout'
@@ -30,7 +31,7 @@ export default function TreePage() {
   const [undo, setUndo] = useState<Undoable | null>(null)
   const restore = useRestore(treeId)
 
-  const { memberList, byId, forest, generations, genders } = useTreeLayout(members.data, rels.data)
+  const { memberList, byId, forest, generations, genders, conflicts } = useTreeLayout(members.data, rels.data)
 
   const selected = selectedId !== null ? byId.get(selectedId) : undefined
   const matches = query.trim()
@@ -151,6 +152,7 @@ export default function TreePage() {
           </div>
         )}
 
+        {!loading && !error && <TreeConflictNotice conflicts={conflicts} />}
         {!loading && !error && forest.length > 0 && (
           <TreeView forest={forest} genders={genders} selectedId={selectedId} onSelect={setSelectedId} focus={focus} />
         )}

@@ -16,6 +16,14 @@ const GRANDCHILD = new Set(['Grandson', 'Granddaughter'])
 
 export const isSpouseType = (name: string) => SPOUSE.has(name)
 
+/** [ancestor, descendant] if this link is a parent/child (or grandparent/grandchild) kind. */
+export function parentEdgeOf(r: Relationship): [number, number] | null {
+  const name = r.relationship_type_name
+  if (PARENT.has(name) || GRANDPARENT.has(name)) return [r.member_1, r.member_2]
+  if (CHILD.has(name) || GRANDCHILD.has(name)) return [r.member_2, r.member_1]
+  return null
+}
+
 export type Group =
   | 'Grandparents'
   | 'Parents'
@@ -184,9 +192,19 @@ export function buildGraph(rels: Relationship[]): Graph {
   return g
 }
 
+/**
+ * A fixed order for people that depends on who they are, not on when they were entered: oldest
+ * first, then by name. Id is only the last resort, for two people who are otherwise identical.
+ */
+export const canonicalOrder = (a: Member, b: Member) =>
+  (a.birth_date ?? '9999').localeCompare(b.birth_date ?? '9999') ||
+  a.first_name.localeCompare(b.first_name) ||
+  a.last_name.localeCompare(b.last_name) ||
+  a.id - b.id
+
 /** Members with no recorded parents - candidate roots for the tree view. */
 export function findRoots(members: Member[], g: Graph): Member[] {
-  const roots = members.filter((m) => !g.parents.has(m.id))
+  const roots = members.filter((m) => !g.parents.has(m.id)).sort(canonicalOrder)
   // Show one of each spouse pair only.
   const seen = new Set<number>()
   return roots.filter((m) => {
@@ -208,6 +226,8 @@ export interface Unit {
   children: Unit[]
   /** Reached by a grandparent link: drawn two rows below its parent unit, not one. */
   skip: boolean
+  /** Row this unit belongs on, from `assignGenerations`. When absent, rows follow the branch depth. */
+  gen?: number
   /**
    * Children of this unit who are already drawn elsewhere (typically a married-in spouse,
    * shown beside their partner). They get a link from this unit rather than a second card.
@@ -223,7 +243,12 @@ const byBirth = (a: Member, b: Member) =>
  * every other family line follows, so an in-law's parents are never dropped. Each person gets
  * exactly one card; a child who already has one is recorded in `refs` and linked instead.
  */
-export function buildForest(mainId: number | null, members: Map<number, Member>, g: Graph): Unit[] {
+export function buildForest(
+  mainId: number | null,
+  members: Map<number, Member>,
+  g: Graph,
+  gens?: Map<number, number>,
+): Unit[] {
   const visited = new Set<number>()
   const build = (id: number): Unit | null => {
     const m = members.get(id)
@@ -261,7 +286,7 @@ export function buildForest(mainId: number | null, members: Map<number, Member>,
           children.push(unit)
         }
       })
-    return { id, people, children, skip: false, refs }
+    return { id, people, children, skip: false, refs, gen: gens?.get(id) }
   }
 
   const forest: Unit[] = []
@@ -271,7 +296,7 @@ export function buildForest(mainId: number | null, members: Map<number, Member>,
   }
   if (mainId !== null) add(mainId)
   // Remaining family lines: the oldest known generation first, then anyone not yet reached.
-  const rest = [...members.values()].sort(byBirth)
+  const rest = [...members.values()].sort(canonicalOrder)
   rest.filter((m) => !g.parents.has(m.id)).forEach((m) => add(m.id))
   rest.forEach((m) => add(m.id))
   return forest

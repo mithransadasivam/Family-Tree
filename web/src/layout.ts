@@ -40,7 +40,11 @@ export function layoutForest(forest: Unit[]) {
     return w
   }
 
-  const place = (u: Unit, left: number, depth: number): Placed => {
+  // `depth` is where this unit would go by branch depth; a solved generation (u.gen) wins, so
+  // rows never depend on which branch the unit was reached through.
+  const place = (unit: Unit, left: number, branchDepth: number): Placed => {
+    const u = unit
+    const depth = u.gen ?? branchDepth
     const sw = widths.get(u)!
     const span = u.children.reduce((s, c) => s + widths.get(c)!, 0) + SG * Math.max(0, u.children.length - 1)
     let x = left + (sw - span) / 2
@@ -84,7 +88,7 @@ export function layoutForest(forest: Unit[]) {
       u.children.forEach((c) => find(c, d + (c.skip ? 2 : 1)))
     }
     find(root, 0)
-    const base = (anchor as { row: number } | null)?.row ?? 0
+    const base = root.gen ?? (anchor as { row: number } | null)?.row ?? 0
 
     // Lay out at x = 0, measure how far left it reaches in each row, then pick the offset.
     const draft = flatten(place(root, 0, base))
