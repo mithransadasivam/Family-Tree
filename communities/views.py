@@ -165,12 +165,18 @@ class CommunityJoinView(APIView):
                 created_at__gte=timezone.now() - timedelta(days=1)).exists():
             return err('Your last request was declined. You can ask again tomorrow.')
         message = (request.data.get('message') or '').strip()[:300]
-        join = CommunityJoinRequest.objects.create(community=community, requester=user, message=message)
+        tree = None
+        if request.data.get('tree_id') not in (None, ''):
+            tree = FamilyTree.objects.filter(id=request.data.get('tree_id'), owner=user, is_active=True).first()
+            if not tree:
+                return err('You can only offer a family tree you own', status.HTTP_403_FORBIDDEN)
+        join = CommunityJoinRequest.objects.create(community=community, requester=user, message=message, tree=tree)
         email_owner(
             community.owner,
             f'{full_name(user)} wants to join {community.name}',
             f'{full_name(user)} ({user.email}) asked to join your community "{community.name}" on Kinship.\n'
             + (f'\nTheir message: {message}\n' if message else '')
+            + (f'\nThey offered to share their family "{tree.tree_name}" with the community.\n' if tree else '')
             + f'\nReview and approve or decline here (you will need to sign in):\n'
             f'{site_link(f"/approve/community/{join.id}", request)}\n',
         )
@@ -197,18 +203,19 @@ class CommunityRequestsView(APIView):
             return error
         if mem.role != 'owner':
             return err('Only the owner can see join requests', status.HTTP_403_FORBIDDEN)
-        pending = community.join_requests.filter(status='pending').select_related('requester')
+        pending = community.join_requests.filter(status='pending').select_related('requester', 'tree')
         return Response([{
             'id': r.id,
             'name': full_name(r.requester),
             'email': r.requester.email,
             'message': r.message,
+            'tree_name': r.tree.tree_name if r.tree else '',
             'created_at': r.created_at,
         } for r in pending])
 
 
 def request_for_owner(request_id, user):
-    join = CommunityJoinRequest.objects.select_related('community', 'requester').filter(id=request_id).first()
+    join = CommunityJoinRequest.objects.select_related('community', 'requester', 'tree').filter(id=request_id).first()
     if not join or join.community.owner_id != user.id:
         return None
     return join
@@ -227,13 +234,14 @@ class CommunityRequestDetailView(APIView):
             'requester_name': full_name(join.requester),
             'requester_email': join.requester.email,
             'message': join.message,
+            'tree_name': join.tree.tree_name if join.tree else '',
             'status': join.status,
             'created_at': join.created_at,
         })
 
     def patch(self, request, request_id):
         user = current_user(request)
-        join = CommunityJoinRequest.objects.select_related('community', 'requester').filter(id=request_id).first()
+        join = CommunityJoinRequest.objects.select_related('community', 'requester', 'tree').filter(id=request_id).first()
         if not join or join.community.owner_id != user.id:
             return err('Request not found', status.HTTP_404_NOT_FOUND)
         if join.status != 'pending':
@@ -247,6 +255,10 @@ class CommunityRequestDetailView(APIView):
             if new_status == 'approved':
                 CommunityMember.objects.get_or_create(
                     community=join.community, user=join.requester, defaults={'role': 'member'})
+                tree = join.tree
+                if tree and tree.owner_id == join.requester_id and tree.is_active:
+                    CommunityTree.objects.get_or_create(
+                        community=join.community, tree=tree, defaults={'added_by': join.requester})
         return Response({'id': join.id, 'status': join.status})
 
 

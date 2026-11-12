@@ -2023,3 +2023,7 @@ button.profile-chip {
   margin: 6px 0;
   padding-left: 20px;
 }
+
+/* Inline "pick a family" shown after pressing Join */
+.join-pick { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.join-pick select { width: auto; max-width: 180px; padding: 6px 28px 6px 10px; font-size: 0.85rem; }

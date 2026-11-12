@@ -277,6 +277,7 @@ export default function CommunityPage() {
                   <div>
                     <strong>{r.name}</strong>
                     <div className="muted small">{r.email}</div>
+                    {r.tree_name && <div className="muted small">Offers to share: {r.tree_name}</div>}
                   </div>
                   <div className="row">
                     <button

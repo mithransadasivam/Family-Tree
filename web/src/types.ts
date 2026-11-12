@@ -166,6 +166,8 @@ export interface CommunityRequest {
   name: string
   email: string
   message: string
+  /** The family they offered to share, if any. */
+  tree_name: string
   created_at: string
 }
 
@@ -205,6 +207,8 @@ export interface ApprovalRequest {
   requester_name: string
   requester_email: string
   message: string
+  /** Community requests only: the family the person offered to share. */
+  tree_name?: string
   status: 'pending' | 'approved' | 'rejected'
   created_at: string
 }

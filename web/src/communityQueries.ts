@@ -33,7 +33,8 @@ export const useFindCommunities = (q: string) =>
 export function useJoinCommunity() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: number) => api<{ message: string }>(ENDPOINTS.communityJoin(id), json('POST', {})),
+    mutationFn: (v: { id: number; treeId?: number }) =>
+      api<{ message: string }>(ENDPOINTS.communityJoin(v.id), json('POST', v.treeId ? { tree_id: v.treeId } : {})),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['communities-find'] }),
   })
 }

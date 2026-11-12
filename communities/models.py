@@ -38,6 +38,8 @@ class CommunityJoinRequest(models.Model):
     requester = models.ForeignKey(User, on_delete=models.CASCADE, related_name='community_join_requests')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     message = models.CharField(max_length=300, blank=True)
+    # The requester's own family they offered to share; added to the community when the owner approves.
+    tree = models.ForeignKey(FamilyTree, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

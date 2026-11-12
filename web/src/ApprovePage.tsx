@@ -50,6 +50,14 @@ export default function ApprovePage() {
             <div className="muted small">{r.requester_email}</div>
           </div>
         </div>
+        {r.tree_name && (
+          <div className="detail-row">
+            <div>
+              <div className="detail-label">Family they offer to share</div>
+              <div>{r.tree_name}</div>
+            </div>
+          </div>
+        )}
         {r.message && (
           <div className="detail-row">
             <div>

@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { useCommunities, useCreateCommunity, useFindCommunities, useJoinCommunity } from './communityQueries'
 import { Arrow, Plus, Search } from './Icons'
+import { useMe, useTrees } from './queries'
 import Rings from './Rings'
 
 export default function CommunitiesPage() {
@@ -13,6 +14,17 @@ export default function CommunitiesPage() {
   const [creating, setCreating] = useState(false)
   const q = query.trim()
   const found = useFindCommunities(q)
+  const me = useMe()
+  const trees = useTrees()
+  // Only a family you own can be offered to a community.
+  const ownedTrees = (trees.data ?? []).filter((t) => t.owner.id === me.data?.id)
+  const [joining, setJoining] = useState<number | null>(null)
+  const [treeChoice, setTreeChoice] = useState('')
+  const send = (id: number) =>
+    join.mutate(
+      { id, treeId: treeChoice ? Number(treeChoice) : undefined },
+      { onSuccess: () => setJoining(null) },
+    )
 
   return (
     <main className="page">
@@ -98,11 +110,45 @@ export default function CommunitiesPage() {
                 <Link to={`/communities/${c.id}`} className="badge">
                   Open
                 </Link>
-              ) : c.status === 'pending' || join.data?.message && join.variables === c.id ? (
+              ) : c.status === 'pending' || (join.data?.message && join.variables?.id === c.id) ? (
                 <span className="badge pending">Request sent</span>
+              ) : joining === c.id ? (
+                <div className="row join-pick">
+                  <select
+                    aria-label="Which family to add"
+                    value={treeChoice}
+                    onChange={(e) => setTreeChoice(e.target.value)}
+                  >
+                    <option value="">No family yet</option>
+                    {ownedTrees.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.tree_name}
+                      </option>
+                    ))}
+                  </select>
+                  <button className="ghost" disabled={join.isPending} onClick={() => setJoining(null)}>
+                    Cancel
+                  </button>
+                  <button disabled={join.isPending} onClick={() => send(c.id)}>
+                    {join.isPending ? 'Sending…' : 'Send request'}
+                  </button>
+                </div>
               ) : (
-                <button className="ghost" disabled={join.isPending} onClick={() => join.mutate(c.id)}>
-                  Ask to join
+                <button
+                  className="ghost"
+                  disabled={join.isPending}
+                  onClick={() => {
+                    if (ownedTrees.length === 0) {
+                      setTreeChoice('')
+                      send(c.id)
+                    } else {
+                      // Pre-select the only family so joining stays one extra click.
+                      setTreeChoice(ownedTrees.length === 1 ? String(ownedTrees[0].id) : '')
+                      setJoining(c.id)
+                    }
+                  }}
+                >
+                  Join
                 </button>
               )}
             </li>
