@@ -324,3 +324,57 @@ export function hasDescendants(personId: number, rels: Relationship[]): boolean 
     return false
   })
 }
+
+export interface ParentLink {
+  parentId: number
+  typeName: 'Father' | 'Mother'
+}
+export interface SiblingParentOffer {
+  childId: number
+  links: ParentLink[]
+}
+
+/**
+ * Birth parents of `personId` on record: "P is the Father/Mother of X", or "X is the Son/Daughter of P"
+ * when P's gender is known (otherwise we cannot say Father or Mother, so P is skipped).
+ */
+export function birthParentsOf(
+  personId: number,
+  rels: Relationship[],
+  genders: Map<number, KnownGender>,
+): Map<number, 'Father' | 'Mother'> {
+  const out = new Map<number, 'Father' | 'Mother'>()
+  for (const r of rels) {
+    const t = r.relationship_type_name
+    if (r.member_2 === personId && (t === 'Father' || t === 'Mother')) out.set(r.member_1, t)
+    else if (r.member_1 === personId && (t === 'Son' || t === 'Daughter')) {
+      const g = genders.get(r.member_2)
+      if (g === 'male') out.set(r.member_2, 'Father')
+      else if (g === 'female') out.set(r.member_2, 'Mother')
+    }
+  }
+  return out
+}
+
+/**
+ * After "a is the Brother/Sister of b" is added: when exactly one of them has parents on record and
+ * the other has none, what to offer so the other gets the same parents. Undefined when there is
+ * nothing sensible to offer (neither has parents, both do, or not a birth-sibling type).
+ */
+export function siblingParentOffer(
+  typeName: string,
+  a: number,
+  b: number,
+  rels: Relationship[],
+  genders: Map<number, KnownGender>,
+): SiblingParentOffer | undefined {
+  if (typeName !== 'Brother' && typeName !== 'Sister') return undefined
+  const pa = birthParentsOf(a, rels, genders)
+  const pb = birthParentsOf(b, rels, genders)
+  let childId: number
+  let parents: Map<number, 'Father' | 'Mother'>
+  if (pa.size > 0 && pb.size === 0) [childId, parents] = [b, pa]
+  else if (pb.size > 0 && pa.size === 0) [childId, parents] = [a, pb]
+  else return undefined
+  return { childId, links: [...parents].map(([parentId, typeName]) => ({ parentId, typeName })) }
+}

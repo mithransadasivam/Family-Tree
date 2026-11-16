@@ -205,3 +205,48 @@ class MemberTreeImmutableTests(TestCase):
         self.assertEqual(res.status_code, 200)
         self.member.refresh_from_db()
         self.assertEqual(self.member.first_name, 'Patricia')
+
+
+class DateValidationTests(TestCase):
+    """Birth/death dates can't be in the future, and death can't come before birth."""
+
+    def setUp(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        self.owner = make_user('dateowner')
+        self.tree = make_tree(self.owner)
+        self.client = client_for(self.owner)
+        self.today = timezone.localdate()
+        self.tomorrow = (self.today + timedelta(days=1)).isoformat()
+
+    def _post(self, **extra):
+        return self.client.post(
+            '/api/family-members/', {'tree': self.tree.id, 'first_name': 'D', **extra}, format='json')
+
+    def test_future_birth_date_rejected(self):
+        res = self._post(birth_date=self.tomorrow)
+        self.assertEqual(res.status_code, 400, res.content)
+        self.assertIn('birth_date', res.json())
+
+    def test_future_death_date_rejected(self):
+        res = self._post(birth_date='1950-01-01', death_date=self.tomorrow)
+        self.assertEqual(res.status_code, 400, res.content)
+        self.assertIn('death_date', res.json())
+
+    def test_death_before_birth_rejected(self):
+        res = self._post(birth_date='1990-05-05', death_date='1980-01-01')
+        self.assertEqual(res.status_code, 400, res.content)
+        self.assertIn('death_date', res.json())
+
+    def test_death_before_stored_birth_rejected_on_partial_update(self):
+        m = FamilyMember.objects.create(
+            tree=self.tree, first_name='P', birth_date='1990-05-05', created_by=self.owner)
+        res = self.client.patch(
+            f'/api/family-members/{m.id}/', {'death_date': '1980-01-01'}, format='json')
+        self.assertEqual(res.status_code, 400, res.content)
+
+    def test_valid_dates_accepted(self):
+        res = self._post(birth_date='1950-01-01', death_date='2020-06-01')
+        self.assertEqual(res.status_code, 201, res.content)
+        res = self._post(birth_date=self.today.isoformat())
+        self.assertEqual(res.status_code, 201, res.content)

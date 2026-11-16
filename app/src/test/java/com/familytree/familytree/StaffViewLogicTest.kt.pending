@@ -1,0 +1,175 @@
+// PENDING SPEC - not compiled (the .pending suffix keeps Gradle from picking it up).
+// It describes the Android staff screens (StaffTreeListScreen, StaffTreeViewScreen, StaffViewLogic.kt,
+// the staff/trees routes, Screen.StaffTrees), none of which exist yet. When they are built, rename this
+// back to StaffViewLogicTest.kt and make it pass.
+package com.familytree.familytree
+
+import com.familytree.familytree.data.models.FamilyMember
+import com.familytree.familytree.data.models.Relationship
+import com.familytree.familytree.data.models.StaffOwner
+import com.familytree.familytree.data.models.StaffTree
+import com.familytree.familytree.ui.screens.STAFF_PAGE_SIZE
+import com.familytree.familytree.ui.screens.staffBanner
+import com.familytree.familytree.ui.screens.staffCountsText
+import com.familytree.familytree.ui.screens.staffCreatedDate
+import com.familytree.familytree.ui.screens.staffHasMore
+import com.familytree.familytree.ui.screens.staffMemberCard
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.io.File
+
+class StaffViewLogicTest {
+    private fun tree(owner: StaffOwner = StaffOwner(5, "owner@example.com", "Olive", "Owner"), active: Boolean = true) =
+        StaffTree(1, "Smith", "", owner, active, true, 2, 7, "2026-01-02T03:04:05Z", "2026-01-02T03:04:05Z")
+
+    private fun person(
+        id: Int, first: String, last: String = "T", gender: String? = null, phone: String = "",
+        birth: String? = null, birthPlace: String = "", death: String? = null, deathPlace: String = ""
+    ) = FamilyMember(
+        id = id, tree = 1, user = null, first_name = first, last_name = last, phone = phone, email = "",
+        address = "", photo_url = "", birth_date = birth, birth_place = birthPlace, death_date = death,
+        death_place = deathPlace, gender = gender, created_at = "", updated_at = ""
+    )
+
+    private fun rel(id: Int, m1: Int, m2: Int, type: String) =
+        Relationship(id, 1, m1, m2, 0, type, "", "")
+
+    // ---- banner --------------------------------------------------------------------------------
+    @Test
+    fun bannerSaysStaffReadOnlyAndNamesTheOwner() {
+        assertEquals(
+            "Viewing as staff · read-only · Owner: Olive Owner (owner@example.com)",
+            staffBanner(tree())
+        )
+    }
+
+    @Test
+    fun bannerFallsBackToTheEmailForAnUnnamedOwnerAndFlagsDeletedTrees() {
+        val unnamed = tree(StaffOwner(6, "g@example.com", "", ""), active = false)
+        assertEquals("Viewing as staff · read-only · Owner: g@example.com · Deleted by its owner", staffBanner(unnamed))
+    }
+
+    // ---- list rows -----------------------------------------------------------------------------
+    @Test
+    fun listRowTexts() {
+        assertEquals("7 people · 2 accounts", staffCountsText(tree()))
+        assertEquals("1 person · 1 account", staffCountsText(tree().copy(people_count = 1, account_count = 1)))
+        assertEquals("0 people · 0 accounts", staffCountsText(tree().copy(people_count = 0, account_count = 0)))
+        assertEquals("2026-01-02", staffCreatedDate("2026-01-02T03:04:05Z"))
+        assertEquals("", staffCreatedDate(""))
+    }
+
+    @Test
+    fun pagingKnowsWhenThereIsMore() {
+        assertEquals(50, STAFF_PAGE_SIZE)
+        assertTrue(staffHasMore(loaded = 50, total = 120))
+        assertTrue(staffHasMore(loaded = 119, total = 120))
+        assertFalse(staffHasMore(loaded = 120, total = 120))
+        assertFalse(staffHasMore(loaded = 0, total = 0))
+    }
+
+    // ---- the sheet shown when a person is tapped --------------------------------------------------
+    @Test
+    fun aPrivatePhoneThatArrivesBlankIsNotShownAtAll() {
+        val card = staffMemberCard(person(1, "Ann", phone = ""), listOf(person(1, "Ann")), emptyList())
+        assertTrue(card.facts.none { it.first == "Phone" })
+    }
+
+    @Test
+    fun aPublicPhoneIsShown() {
+        val card = staffMemberCard(person(2, "Ben", phone = "555-2222"), listOf(person(2, "Ben")), emptyList())
+        assertEquals("555-2222", card.facts.single { it.first == "Phone" }.second)
+    }
+
+    @Test
+    fun datesAndPlacesAreShownOnlyWhenRecorded() {
+        val full = person(1, "Ann", birth = "1950-01-02", birthPlace = "Leeds", death = "2020-03-04", deathPlace = "York")
+        assertEquals(
+            listOf("Born" to "1950-01-02 · Leeds", "Died" to "2020-03-04 · York"),
+            staffMemberCard(full, listOf(full), emptyList()).facts
+        )
+        val bare = person(2, "Ben")
+        assertTrue(staffMemberCard(bare, listOf(bare), emptyList()).facts.isEmpty())
+        val placeOnly = person(3, "Cy", birthPlace = "Hull")
+        assertEquals(listOf("Born" to "Hull"), staffMemberCard(placeOnly, listOf(placeOnly), emptyList()).facts)
+    }
+
+    @Test
+    fun theCardNeverShowsEmailOrAddress() {
+        val p = person(1, "Ann").copy(email = "ann@example.com", address = "1 High St")
+        val text = staffMemberCard(p, listOf(p), emptyList()).toString()
+        assertFalse(text.contains("ann@example.com") || text.contains("1 High St"))
+    }
+
+    @Test
+    fun relationshipsReadFromTheViewedPersonsSideLikeTheMemberScreen() {
+        val ann = person(1, "Ann", gender = "female")
+        val ben = person(2, "Ben", gender = "male")
+        val members = listOf(ann, ben)
+        val rels = listOf(rel(10, 1, 2, "Mother")) // Ann IS the Mother of Ben
+        // On Ben's card, Ann is his Mother; on Ann's card, Ben is her Son.
+        assertEquals(listOf("Ann T" to "Mother"), staffMemberCard(ben, members, rels).relationships.map { it.name to it.label })
+        assertEquals(listOf("Ben T" to "Son"), staffMemberCard(ann, members, rels).relationships.map { it.name to it.label })
+    }
+
+    @Test
+    fun peopleWithoutARecordedGenderGetNeutralWordsAndMissingPeopleAreUnknown() {
+        val ann = person(1, "Ann"); val ben = person(2, "Ben")
+        val rels = listOf(rel(10, 1, 2, "Brother"), rel(11, 1, 99, "Brother"))
+        val card = staffMemberCard(ann, listOf(ann, ben), rels)
+        assertEquals(listOf("Ben T", "Unknown"), card.relationships.map { it.name })
+    }
+
+    @Test
+    fun theTitleIsTheFullNameAndIgnoresUnrelatedLinks() {
+        val ann = person(1, "Ann", last = ""); val ben = person(2, "Ben"); val cy = person(3, "Cy")
+        val card = staffMemberCard(ann, listOf(ann, ben, cy), listOf(rel(10, 2, 3, "Brother")))
+        assertEquals("Ann", card.title)
+        assertTrue(card.relationships.isEmpty())
+        assertNull(card.relationships.firstOrNull())
+    }
+
+    // ---- guards: the staff screens can look but not touch ----------------------------------------
+    private fun src(path: String) = File("src/main/java/com/familytree/familytree/$path").readText()
+
+    @Test
+    fun staffScreensCallNothingThatChangesData() {
+        val mutating = Regex("""repository\.(create|update|delete|approve|reject|generate|redeem|submit|leave|save|clear)\w*""")
+        for (file in listOf("ui/screens/StaffTreeListScreen.kt", "ui/screens/StaffTreeViewScreen.kt", "ui/screens/StaffViewLogic.kt")) {
+            val bad = mutating.findAll(src(file)).map { it.value }.toList()
+            assertTrue("$file calls $bad", bad.isEmpty())
+        }
+    }
+
+    @Test
+    fun staffScreensOfferNoEditingControls() {
+        for (file in listOf("ui/screens/StaffTreeListScreen.kt", "ui/screens/StaffTreeViewScreen.kt")) {
+            val s = src(file)
+            for (needle in listOf("Icons.Filled.Delete", "Icons.Default.Delete", "Icons.Filled.Edit", "Icons.Default.Edit",
+                "Icons.Default.Add", "Icons.Filled.Add", "OutlinedTextField(value = edit", "Add Family Member")) {
+                assertFalse("$file contains $needle", s.contains(needle))
+            }
+            // Tapping a person must not open the normal (membership-only) member screen.
+            assertFalse("$file navigates to the member screen", s.contains("Screen.MemberDetail"))
+        }
+    }
+
+    @Test
+    fun theSettingsEntryIsOnlyShownToASuperuser() {
+        val s = src("ui/screens/SettingsScreen.kt")
+        val at = s.indexOf("Screen.StaffTrees.route")
+        assertTrue("Settings must link to the staff list", at > 0)
+        val before = s.substring(maxOf(0, at - 400), at)
+        assertTrue("entry must sit behind isSuperuser:\n$before", "isSuperuser" in before)
+    }
+
+    @Test
+    fun theStaffRoutesExist() {
+        val nav = src("ui/navigation/Navigation.kt")
+        assertTrue(nav.contains("\"staff/trees\""))
+        assertTrue(nav.contains("\"staff/trees/{treeId}\""))
+    }
+}

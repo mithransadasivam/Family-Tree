@@ -52,6 +52,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -72,6 +73,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.familytree.familytree.data.models.CreateRelationshipRequest
+import com.familytree.familytree.data.models.displayName
 import com.familytree.familytree.data.models.FamilyMember
 import com.familytree.familytree.data.models.Relationship
 import com.familytree.familytree.data.models.RelationshipType
@@ -103,6 +105,8 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
     // Every member can add and edit; only the tree owner sees the delete actions.
     var canDelete by remember { mutableStateOf(false) }
     var showAddRel by remember { mutableStateOf(false) }
+    // Set after a Brother/Sister link is added when the sibling already has parents on record.
+    var siblingOffer by remember { mutableStateOf<SiblingParentOffer?>(null) }
     var selectedMemberId by remember { mutableStateOf(0) }
     var relLanguage by remember { mutableStateOf(RelationshipLanguage.ENGLISH) }
     var relSearchQuery by remember { mutableStateOf("") }
@@ -189,7 +193,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text(member?.first_name ?: "Member", color = Color.White) },
+                title = { Text(member?.displayName() ?: "Member", color = Color.White) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
@@ -370,7 +374,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                 ) {
                     Text(
                         text = relationshipSentence(
-                            member?.first_name, selectedOther?.first_name, selectedTerm?.label, editingSelfIsFirst
+                            member?.displayName(), selectedOther?.displayName(), selectedTerm?.label, editingSelfIsFirst
                         ),
                         modifier = Modifier.padding(12.dp),
                         fontSize = 14.sp,
@@ -408,7 +412,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
 
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    relationshipTypePrompt(member?.first_name, selectedOther?.first_name, editingSelfIsFirst),
+                    relationshipTypePrompt(member?.displayName(), selectedOther?.displayName(), editingSelfIsFirst),
                     fontSize = 12.sp,
                     color = TextHint
                 )
@@ -568,6 +572,12 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                                     if (relsResult.isSuccess) relationships = relsResult.getOrNull()
                                         ?.filter { it.member_1 == memberId || it.member_2 == memberId }
                                         ?: emptyList()
+                                    if (createResult.isSuccess && relIdBeingEdited == null && relsResult.isSuccess) {
+                                        siblingOffer = siblingParentOffer(
+                                            term.englishType, selectedMemberId, m.id,
+                                            treeRelationships, inferGenders(treeRelationships, allMembers)
+                                        )
+                                    }
                                     closeAddRel()
                                     if (createResult.isSuccess) {
                                         snackbarHostState.showSnackbar(if (relIdBeingEdited != null) "Relationship updated" else "Relationship added")
@@ -582,6 +592,44 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                 }
             }
         }
+    }
+
+    siblingOffer?.let { offer ->
+        val nameOf = { id: Int -> allMembers.find { it.id == id }?.displayName() ?: "#$id" }
+        AlertDialog(
+            onDismissRequest = { siblingOffer = null },
+            title = { Text("Link to the same parents?") },
+            text = {
+                Text(
+                    offer.links.joinToString("\n") { "${nameOf(it.parentId)} - ${it.typeName}" }
+                        .let { "Also add these parents to ${nameOf(offer.childId)}?\n\n$it" }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    siblingOffer = null
+                    scope.launch {
+                        val treeId = member?.tree ?: return@launch
+                        var failure: String? = null
+                        offer.links.forEach { link ->
+                            val type = relTypes.find { it.type_name == link.typeName }
+                            if (type == null) { failure = "This relationship type isn't available right now"; return@forEach }
+                            val res = repository.createRelationship(
+                                CreateRelationshipRequest(tree = treeId, member_1 = link.parentId, member_2 = offer.childId, relationship_type = type.id)
+                            )
+                            if (res.isFailure) failure = res.exceptionOrNull()?.message ?: "Failed to add parent"
+                        }
+                        val relsResult = repository.getRelationships(treeId)
+                        if (relsResult.isSuccess) {
+                            treeRelationships = relsResult.getOrNull() ?: emptyList()
+                            relationships = treeRelationships.filter { it.member_1 == memberId || it.member_2 == memberId }
+                        }
+                        snackbarHostState.showSnackbar(failure ?: "Parents added")
+                    }
+                }) { Text("Add parents") }
+            },
+            dismissButton = { TextButton(onClick = { siblingOffer = null }) { Text("No thanks") } }
+        )
     }
 
     if (showEditSheet) {
@@ -611,7 +659,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = editBirthPlace, onValueChange = { editBirthPlace = it }, label = { Text("Birth Place") }, modifier = Modifier.fillMaxWidth(), enabled = !isSavingEdit)
                 Spacer(Modifier.height(8.dp))
-                EditDateField(label = "Death Date (optional)", value = editDeathDate, enabled = !isSavingEdit, onValueChange = { editDeathDate = it })
+                EditDateField(label = "Death Date (optional)", value = editDeathDate, enabled = !isSavingEdit, minDate = editBirthDate.ifBlank { null }, onValueChange = { editDeathDate = it })
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = editDeathPlace, onValueChange = { editDeathPlace = it }, label = { Text("Death Place (optional)") }, modifier = Modifier.fillMaxWidth(), enabled = !isSavingEdit)
 
@@ -664,7 +712,7 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
         AlertDialog(
             onDismissRequest = { showDeleteMemberConfirm = false },
             title = { Text("Delete Member") },
-            text = { Text("Are you sure you want to delete ${member?.first_name ?: "this member"}? This action cannot be undone.") },
+            text = { Text("Are you sure you want to delete ${member?.displayName() ?: "this member"}? This action cannot be undone.") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -720,7 +768,15 @@ fun MemberDetailScreen(navController: NavController, memberId: Int) {
 }
 
 @Composable
-private fun EditDateField(label: String, value: String, enabled: Boolean, onValueChange: (String) -> Unit) {
+private fun EditDateField(
+    label: String,
+    value: String,
+    enabled: Boolean,
+    // Inclusive ISO yyyy-MM-dd bounds for what can be picked; maxDate defaults to today (no future dates).
+    minDate: String? = null,
+    maxDate: String? = isoDateFormat().format(Date()),
+    onValueChange: (String) -> Unit
+) {
     var showPicker by remember { mutableStateOf(false) }
     OutlinedTextField(
         value = value,
@@ -736,7 +792,13 @@ private fun EditDateField(label: String, value: String, enabled: Boolean, onValu
         }
     )
     if (showPicker) {
+        val minMillis = minDate?.takeIf { it.isNotBlank() }?.let { parseIsoDateToMillis(it) }
+        val maxMillis = maxDate?.takeIf { it.isNotBlank() }?.let { parseIsoDateToMillis(it) }
         val datePickerState = rememberDatePickerState(
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long) =
+                    (minMillis == null || utcTimeMillis >= minMillis) && (maxMillis == null || utcTimeMillis <= maxMillis)
+            },
             initialSelectedDateMillis = value.takeIf { it.isNotBlank() }?.let { parseIsoDateToMillis(it) }
         )
         DatePickerDialog(

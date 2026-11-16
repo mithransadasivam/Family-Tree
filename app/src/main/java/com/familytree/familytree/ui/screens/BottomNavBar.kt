@@ -23,13 +23,17 @@ fun BottomNavBar(navController: NavController, currentRoute: String) {
     // would be a no-op for every bottom-nav tap in the app's actual, post-login lifetime. Home is
     // the true root of the tab-switchable area (Login always lands on Home, and every bottom-nav
     // screen is reached from there), so that's the destination to collapse back to.
+    //
+    // saveState/restoreState are deliberately NOT used: with every tab sharing one popUpTo and
+    // saved state keyed by whichever destination was popped, tapping a tab could restore a
+    // different tab's saved stack (testers saw Settings -> Home/Trees land on Profile). Each tab
+    // screen reloads its own data on entry, so there is no per-tab state worth restoring.
+    // Note there is no separate "Trees" destination: Home IS the list of trees, and the Trees
+    // item is just highlighted while a tree (tree/{id}) is open, so it returns to that list.
     fun navigateToTab(route: String) {
         navController.navigate(route) {
-            popUpTo(Screen.Home.route) {
-                saveState = true
-            }
+            popUpTo(Screen.Home.route)
             launchSingleTop = true
-            restoreState = true
         }
     }
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Avatar, { lifespan } from './Avatar'
-import { classify, GROUP_ORDER, hasDescendants, inferGenders, type Group } from './graph'
+import { classify, GROUP_ORDER, hasDescendants, inferGenders, siblingParentOffer, type Group, type SiblingParentOffer } from './graph'
 import { Close, Edit, Mars, Trash, Venus } from './Icons'
 import {
   useAddRelationship,
@@ -136,6 +136,9 @@ export default function DetailPanel({
   const types = useRelationshipTypes()
   const [otherId, setOtherId] = useState('')
   const [editingRel, setEditingRel] = useState<number | null>(null)
+  // Set after a Brother/Sister link when the sibling already has parents: one prompt, never silent.
+  const [offer, setOffer] = useState<SiblingParentOffer | null>(null)
+  const [offerError, setOfferError] = useState('')
   const { typeId, picker, reset } = useTermPicker(types.data)
 
   // A parent (or grandparent) is a root of the family: they cannot be deleted while anyone is linked below them.
@@ -163,15 +166,33 @@ export default function DetailPanel({
   // [this member]" is stored as member_1 = other, member_2 = this member.
   const submit = () => {
     if (!otherId || typeId === undefined) return
+    const typeName = types.data?.find((t) => t.id === typeId)?.type_name ?? ''
+    const other = Number(otherId)
     addRel.mutate(
-      { member_1: Number(otherId), member_2: member.id, relationship_type: typeId },
+      { member_1: other, member_2: member.id, relationship_type: typeId },
       {
         onSuccess: () => {
           setOtherId('')
           reset()
+          setOfferError('')
+          setOffer(siblingParentOffer(typeName, other, member.id, relationships, genders) ?? null)
         },
       },
     )
+  }
+
+  const addOfferedParents = async () => {
+    if (!offer) return
+    try {
+      for (const link of offer.links) {
+        const t = types.data?.find((x) => x.type_name === link.typeName)
+        if (!t) throw new Error(`The "${link.typeName}" relationship type isn't available`)
+        await addRel.mutateAsync({ member_1: link.parentId, member_2: offer.childId, relationship_type: t.id })
+      }
+      setOffer(null)
+    } catch (e) {
+      setOfferError(e instanceof Error ? e.message : 'Could not add the parents')
+    }
   }
 
   const facts = [
@@ -376,6 +397,25 @@ export default function DetailPanel({
           </button>
           {relatedIds.size > 0 && (
             <p className="muted small">Only people not yet connected to {member.first_name} are listed.</p>
+          )}
+        </div>
+      )}
+      {offer && (
+        <div role="group" aria-label="Link to the same parents" className="sentence" style={{ marginTop: 8 }}>
+          <span>
+            Also add {offer.links.map((l) => `${fullName(byId.get(l.parentId)!)} (${l.typeName})`).join(' and ')} as the
+            parents of <b>{fullName(byId.get(offer.childId)!)}</b>?
+          </span>
+          <button disabled={addRel.isPending} onClick={addOfferedParents}>
+            Add parents
+          </button>
+          <button className="secondary" onClick={() => setOffer(null)}>
+            No thanks
+          </button>
+          {offerError && (
+            <p role="alert" className="error">
+              {offerError}
+            </p>
           )}
         </div>
       )}

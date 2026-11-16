@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import serializers
 from .models import FamilyMember
 
@@ -25,7 +26,24 @@ class FamilyMemberSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('A person cannot be moved to a different family')
         return tree
 
+    def validate_birth_date(self, value):
+        if value is not None and value > timezone.localdate():
+            raise serializers.ValidationError('Birth date cannot be in the future')
+        return value
+
+    def validate_death_date(self, value):
+        if value is not None and value > timezone.localdate():
+            raise serializers.ValidationError('Death date cannot be in the future')
+        return value
+
     def validate(self, attrs):
+        # Death can't precede birth. On a partial update only one of the two may be sent, so fall
+        # back to the stored value for the other.
+        birth = attrs['birth_date'] if 'birth_date' in attrs else getattr(self.instance, 'birth_date', None)
+        death = attrs['death_date'] if 'death_date' in attrs else getattr(self.instance, 'death_date', None)
+        if birth and death and death < birth:
+            raise serializers.ValidationError({'death_date': 'Death date cannot be before birth date'})
+
         # `user` links a person to a sign-in account, and that account can read the person's
         # private phone (see can_see_phone). So it is the owner's call: if anyone could set it,
         # a member could link themselves to anyone and read their "private" number.

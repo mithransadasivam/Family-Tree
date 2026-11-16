@@ -207,3 +207,6 @@ data class EditHistory(
     val edited_by: User?,
     val edited_at: String
 )
+
+/** Full name as the website's fullName() shows it: "first last", or just the first name when there is no last name. */
+fun FamilyMember.displayName(): String = "$first_name $last_name".trim()

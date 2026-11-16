@@ -145,3 +145,57 @@ fun relationshipSentence(selfName: String?, otherName: String?, term: String?, s
     val label = term ?: "..."
     return if (selfIsFirst) "$self is the $label of $other" else "$other is the $label of $self"
 }
+
+/** A parent link to offer when a sibling is added: [parentId] IS the [typeName] ("Father"/"Mother") of the child. */
+data class ParentLink(val parentId: Int, val typeName: String)
+
+/** Offer to give [childId] the same birth parents the sibling already has. */
+data class SiblingParentOffer(val childId: Int, val links: List<ParentLink>)
+
+/**
+ * Birth parents of [personId] on record: "P is the Father/Mother of X", or "X is the Son/Daughter of P"
+ * when P's gender is known (otherwise we can't say Father or Mother, so P is skipped).
+ */
+internal fun birthParentsOf(
+    personId: Int,
+    relationships: List<Relationship>,
+    genders: Map<Int, KnownGender>,
+): Map<Int, String> {
+    val out = LinkedHashMap<Int, String>()
+    relationships.forEach { r ->
+        val t = r.relationship_type_name
+        when {
+            r.member_2 == personId && (t == "Father" || t == "Mother") -> out[r.member_1] = t
+            r.member_1 == personId && (t == "Son" || t == "Daughter") -> when (genders[r.member_2]) {
+                KnownGender.MALE -> out[r.member_2] = "Father"
+                KnownGender.FEMALE -> out[r.member_2] = "Mother"
+                null -> {}
+            }
+        }
+    }
+    return out
+}
+
+/**
+ * After "[a] is the Brother/Sister of [b]" is added: if exactly one of them has parents on record
+ * and the other has none of them, return what to offer so the other is linked to the same parents.
+ * Null when there's nothing sensible to offer (neither has parents, both do, or not a birth sibling
+ * type) - then only the sibling row exists, as before.
+ */
+fun siblingParentOffer(
+    typeName: String,
+    a: Int,
+    b: Int,
+    relationships: List<Relationship>,
+    genders: Map<Int, KnownGender>,
+): SiblingParentOffer? {
+    if (typeName != "Brother" && typeName != "Sister") return null
+    val parentsA = birthParentsOf(a, relationships, genders)
+    val parentsB = birthParentsOf(b, relationships, genders)
+    val (child, parents) = when {
+        parentsA.isNotEmpty() && parentsB.isEmpty() -> b to parentsA
+        parentsB.isNotEmpty() && parentsA.isEmpty() -> a to parentsB
+        else -> return null
+    }
+    return SiblingParentOffer(child, parents.map { (id, t) -> ParentLink(id, t) })
+}

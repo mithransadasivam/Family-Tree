@@ -69,3 +69,47 @@ class AuditRelationshipsTests(TestCase):
         self.assertIn(f'row {self.bad.id}: Sivasankaran is the Mother of Jayalakshmi', text)
         self.assertIn('LIKELY STORED BACKWARDS', text)
         self.assertNotIn(f'== Tree {self.clean.id}', text)
+
+
+class UnverifiableDirectionTests(TestCase):
+    """Pre-H1 gender-implying rows where nobody has a gender: the contradiction check can't judge them."""
+
+    def setUp(self):
+        from datetime import datetime, timezone
+        self.u = make_user('uv')
+        self.tree = make_tree(self.u, 'T')
+        mk = lambda n, g='': FamilyMember.objects.create(tree=self.tree, first_name=n, gender=g, created_by=self.u)
+        self.types = {n: RelationshipType.objects.create(type_name=n, category=c)
+                      for n, c in [('Wife', 'marriage'), ('Cousin', 'other')]}
+        self.old_when = datetime(2026, 11, 1, tzinfo=timezone.utc)
+        self.a, self.b, self.c, self.d = mk('A'), mk('B'), mk('C', 'female'), mk('D')
+
+    def make(self, m1, t, m2, old=True):
+        r = Relationship.objects.create(tree=self.tree, member_1=m1, member_2=m2,
+                                        relationship_type=self.types[t], created_by=self.u)
+        if old:
+            Relationship.objects.filter(id=r.id).update(created_at=self.old_when)
+        return r
+
+    def found(self):
+        out = io.StringIO()
+        call_command('audit_relationships', '--json', stdout=out)
+        data = json.loads(out.getvalue())
+        return [r['id'] for t in data['report'] for r in t['unverifiable_direction']]
+
+    def test_old_gendered_row_with_no_genders_is_listed(self):
+        r = self.make(self.a, 'Wife', self.b)
+        self.assertEqual(self.found(), [r.id])
+
+    def test_not_listed_when_a_gender_is_set_on_either_person(self):
+        self.make(self.a, 'Wife', self.c)
+        self.make(self.c, 'Wife', self.d)
+        self.assertEqual(self.found(), [])
+
+    def test_not_listed_when_created_after_the_h1_fix(self):
+        self.make(self.a, 'Wife', self.b, old=False)
+        self.assertEqual(self.found(), [])
+
+    def test_not_listed_for_a_type_that_implies_no_gender(self):
+        self.make(self.a, 'Cousin', self.b)
+        self.assertEqual(self.found(), [])

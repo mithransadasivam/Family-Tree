@@ -85,11 +85,22 @@ def audit_tree(rels):
             # member_2 fits the type -> swapping the two people would make the row consistent.
             info['likely_stored_backwards'] = r.member_2.gender == want
             genders.append(info)
-    return {'generation_contradictions': loops, 'gender_contradictions': genders}
+    # Rows the gender check cannot judge: the type implies member_1's gender, the row predates the H1
+    # direction fix (so it may be reversed), and NEITHER person has a gender to compare against.
+    unverifiable = []
+    for r in rels:
+        t = r.relationship_type.type_name
+        if ((t in MALE_TYPES or t in FEMALE_TYPES) and r.created_at < H1_FIX_AT
+                and r.member_1.gender not in ('male', 'female')
+                and r.member_2.gender not in ('male', 'female')):
+            unverifiable.append(row_info(r))
+    return {'generation_contradictions': loops, 'gender_contradictions': genders,
+            'unverifiable_direction': unverifiable}
 
 
 class Command(BaseCommand):
-    help = 'Read-only: list rows with generation (loop) or gender contradictions. Changes nothing.'
+    help = ('Read-only: list rows with generation (loop) or gender contradictions, and pre-H1-fix '
+            'gender-implying rows with no genders recorded to check them against. Changes nothing.')
 
     def add_arguments(self, parser):
         parser.add_argument('--tree', type=int, help='Only this tree id')
@@ -105,7 +116,7 @@ class Command(BaseCommand):
             rels = list(Relationship.objects.filter(tree=tree)
                         .select_related('member_1', 'member_2', 'relationship_type').order_by('id'))
             found = audit_tree(rels)
-            if found['generation_contradictions'] or found['gender_contradictions']:
+            if found['generation_contradictions'] or found['gender_contradictions'] or found['unverifiable_direction']:
                 report.append({'tree_id': tree.id, 'tree_name': tree.tree_name,
                                'active': tree.is_active, **found})
 
@@ -132,3 +143,9 @@ class Command(BaseCommand):
                     out(f'    row {r["id"]}: {r["reads"]}; {r["member_1_name"]} is recorded as '
                         f'{r["member_1_recorded_gender"]}, type implies {r["type_implies"]}'
                         f'  ({r["created_at"][:10]}){flag}{hint}')
+            if t['unverifiable_direction']:
+                out('  Direction cannot be checked (created before the H1 fix, type implies a gender, but neither person has one set):')
+                out('  Setting the genders will let the gender check judge these.')
+                for r in t['unverifiable_direction']:
+                    out(f'    row {r["id"]}: member_1={r["member_1"]} ({r["member_1_name"]}) '
+                        f'{r["type"]} member_2={r["member_2"]} ({r["member_2_name"]})  ({r["created_at"][:10]})')

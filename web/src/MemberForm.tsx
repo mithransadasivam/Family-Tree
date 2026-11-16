@@ -242,7 +242,12 @@ function EditForm({ treeId, member, onClose, onSaved }: Omit<Props, 'members' | 
         <div className="row">
           <label className="field grow">
             Born
-            <input type="date" value={f.birth_date} onChange={set('birth_date')} />
+            <input
+              type="date"
+              value={f.birth_date}
+              max={new Date().toLocaleDateString('en-CA')}
+              onChange={set('birth_date')}
+            />
           </label>
           <label className="field grow">
             Birthplace
