@@ -34,7 +34,8 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'email', 'first_name', 'last_name',
             'phone', 'address', 'photo_url', 'created_at', 'profile',
-            'has_avatar', 'avatar_version', 'is_staff', 'is_superuser'
+            'has_avatar', 'avatar_version', 'is_staff', 'is_superuser',
+            'email_public', 'phone_public', 'address_public',
         ]
         # email is the account's identity and photo_url is refreshed from Google at every sign-in,
         # so neither can be changed through the profile endpoint. is_staff / is_superuser are shown
@@ -50,6 +51,21 @@ class PublicUserSerializer(UserSerializer):
     profile, which must not be handed to everyone who shares a tree with them.
     """
     profile = None  # drop the inherited nested profile
+    # Staff pages need to tell accounts apart whatever the owner chose to show.
+    reveal_private = False
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Email, phone and address are shown to others only when their owner turned the eye on.
+        # Hidden values come back as '' (not missing, not null) so older apps do not crash.
+        if not self.reveal_private:
+            for field in ('email', 'phone', 'address'):
+                if not getattr(instance, f'{field}_public'):
+                    data[field] = ''
+        return data
 
     class Meta(UserSerializer.Meta):
-        fields = ['id', 'email', 'first_name', 'last_name', 'photo_url', 'has_avatar', 'avatar_version']
+        fields = [
+            'id', 'email', 'first_name', 'last_name', 'phone', 'address', 'photo_url',
+            'has_avatar', 'avatar_version',
+        ]

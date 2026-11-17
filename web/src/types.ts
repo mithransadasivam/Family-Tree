@@ -6,6 +6,10 @@ export interface User {
   last_name: string
   phone?: string
   address?: string
+  /** The eye buttons: true when other people may see it. Hidden values arrive from the server as ''. */
+  email_public?: boolean
+  phone_public?: boolean
+  address_public?: boolean
   photo_url?: string
   /** True when the user uploaded their own picture (it then wins over the Google photo). */
   has_avatar?: boolean
@@ -117,7 +121,9 @@ export interface Member {
   /** Public numbers are visible to the family and shared communities; private ones only to the family owner and the person. */
   phone_public: boolean
   email: string
+  email_public: boolean
   address: string
+  address_public: boolean
   /** Id of the user account this person is linked to, if any. */
   user: number | null
   photo_url: string

@@ -28,6 +28,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     last_name = models.CharField(max_length=100, blank=True)
     phone = models.CharField(max_length=20, blank=True)
     address = models.TextField(blank=True)
+    # The eye buttons on the profile: what other people may see. Everything starts hidden.
+    email_public = models.BooleanField(default=False)
+    phone_public = models.BooleanField(default=False)
+    address_public = models.BooleanField(default=False)
     photo_url = models.URLField(max_length=500, blank=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False, help_text='Can sign in to the Django admin site.')

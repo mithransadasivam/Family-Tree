@@ -4,7 +4,8 @@ import { BASE, ENDPOINTS } from './api'
 import { photoSrc } from './Avatar'
 import { toAvatarJpeg } from './avatarImage'
 import { Arrow, Edit, Mail, Phone, Pin } from './Icons'
-import { useAvatar, useMe, useTrees, useUpdateMe, type ProfileInput } from './queries'
+import EyeToggle from './EyeToggle'
+import { useAvatar, useMe, useTrees, useUpdateMe } from './queries'
 import type { User } from './types'
 
 const initialsOf = (u: Pick<User, 'first_name' | 'last_name' | 'email'>) =>
@@ -34,15 +35,29 @@ const Req = () => (
   </span>
 )
 
-function Row({ icon, label, value, note }: { icon: React.ReactNode; label: string; value?: string; note?: string }) {
+function Row({
+  icon,
+  label,
+  value,
+  note,
+  eye,
+}: {
+  icon: React.ReactNode
+  label: string
+  value?: string
+  note?: string
+  /** The eye button for this detail, when others could see it. */
+  eye?: React.ReactNode
+}) {
   return (
     <div className="detail-row">
       <span className="detail-icon">{icon}</span>
-      <div>
+      <div className="grow">
         <div className="detail-label">{label}</div>
         <div className={value ? '' : 'muted'}>{value || 'Not added yet'}</div>
         {note && <div className="muted small">{note}</div>}
       </div>
+      {eye}
     </div>
   )
 }
@@ -56,7 +71,7 @@ export default function ProfilePage() {
   const avatar = useAvatar()
   const fileInput = useRef<HTMLInputElement>(null)
   const [photoError, setPhotoError] = useState<string | null>(null)
-  const [f, setF] = useState<ProfileInput>({ first_name: '', last_name: '', phone: '', address: '' })
+  const [f, setF] = useState({ first_name: '', last_name: '', phone: '', address: '' })
 
   if (me.isLoading) return <p className="status">Loading…</p>
   if (me.error || !me.data) {
@@ -95,7 +110,7 @@ export default function ProfilePage() {
     }
   }
   const busyPhoto = avatar.upload.isPending || avatar.remove.isPending
-  const set = (k: keyof ProfileInput) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setF((p) => ({ ...p, [k]: e.target.value }))
 
   return (
@@ -213,9 +228,28 @@ export default function ProfilePage() {
           </form>
         ) : (
           <>
-            <Row icon={<Mail size={18} />} label="Email" value={u.email} note="From your Google account" />
-            <Row icon={<Phone size={18} />} label="Phone" value={u.phone} />
-            <Row icon={<Pin size={18} />} label="Address" value={u.address} />
+            <Row
+              icon={<Mail size={18} />}
+              label="Email"
+              value={u.email}
+              note="From your Google account"
+              eye={<EyeToggle on={!!u.email_public} disabled={update.isPending} label="email address" onChange={(v) => update.mutate({ email_public: v })} />}
+            />
+            <Row
+              icon={<Phone size={18} />}
+              label="Phone"
+              value={u.phone}
+              eye={<EyeToggle on={!!u.phone_public} disabled={update.isPending} label="phone number" onChange={(v) => update.mutate({ phone_public: v })} />}
+            />
+            <Row
+              icon={<Pin size={18} />}
+              label="Address"
+              value={u.address}
+              eye={<EyeToggle on={!!u.address_public} disabled={update.isPending} label="address" onChange={(v) => update.mutate({ address_public: v })} />}
+            />
+            <p className="muted small" style={{ marginTop: 10 }}>
+              The eye decides what other people in your families can see. Slashed means hidden, and everything starts hidden.
+            </p>
             {saved && (
               <p role="status" style={{ marginTop: 12, color: 'var(--sage)' }}>
                 Saved.

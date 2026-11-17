@@ -21,10 +21,13 @@ export const useMe = () =>
   useQuery({ queryKey: ['me'], queryFn: () => api<User>(ENDPOINTS.me), staleTime: Infinity })
 
 export interface ProfileInput {
-  first_name: string
-  last_name: string
-  phone: string
-  address: string
+  first_name?: string
+  last_name?: string
+  phone?: string
+  address?: string
+  email_public?: boolean
+  phone_public?: boolean
+  address_public?: boolean
 }
 
 /** Update the signed-in user's own details (email and photo come from Google and cannot be edited). */
@@ -224,12 +227,24 @@ export interface MemberInput {
   photo_url: string
   phone: string
   phone_public: boolean
+  email: string
+  email_public: boolean
+  address: string
+  address_public: boolean
 }
 
 // Blank dates must be null for DRF's DateField; blank text fields are fine as ''.
 const toPayload = (i: MemberInput) => ({ ...i, birth_date: i.birth_date || null })
 // Staff never see a private number, so staff edit mode never sends one (the server ignores it too).
-const withoutPhone = ({ phone: _p, phone_public: _v, ...rest }: ReturnType<typeof toPayload>) => rest
+const withoutPhone = ({
+  phone: _p,
+  phone_public: _v,
+  email: _e,
+  email_public: _ev,
+  address: _a,
+  address_public: _av,
+  ...rest
+}: ReturnType<typeof toPayload>) => rest
 
 export function useSaveMember(treeId: number) {
   const qc = useQueryClient()
@@ -423,8 +438,11 @@ export function useRestore(treeId: number) {
         last_name: m.last_name,
         gender: m.gender ?? '',
         phone: m.phone,
+        phone_public: m.phone_public,
         email: m.email,
+        email_public: m.email_public,
         address: m.address,
+        address_public: m.address_public,
         photo_url: m.photo_url,
         birth_date: m.birth_date,
         birth_place: m.birth_place,

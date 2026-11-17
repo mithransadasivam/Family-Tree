@@ -22,7 +22,9 @@ class FamilyMember(models.Model):
     # tree owner and the person themself (their linked account) can.
     phone_public = models.BooleanField(default=False)
     email = models.EmailField(blank=True)
+    email_public = models.BooleanField(default=False)
     address = models.TextField(blank=True)
+    address_public = models.BooleanField(default=False)
     photo_url = models.URLField(max_length=500, blank=True)
     birth_date = models.DateField(null=True, blank=True)
     birth_place = models.CharField(max_length=255, blank=True)

@@ -36,8 +36,12 @@ class IsSuperuser(BasePermission):
         return bool(user and user.is_authenticated and user.is_active and user.is_superuser)
 
 
+class StaffUserSerializer(PublicUserSerializer):
+    reveal_private = True
+
+
 class StaffTreeSerializer(serializers.ModelSerializer):
-    owner = PublicUserSerializer(read_only=True)
+    owner = StaffUserSerializer(read_only=True)
     # Accounts that belong to the tree vs. people drawn in it.
     account_count = serializers.IntegerField(read_only=True)
     people_count = serializers.IntegerField(read_only=True)

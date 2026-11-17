@@ -15,11 +15,11 @@ from relationships.services import TREE_DELETED, lock_tree, snapshot as link_sna
 from utils.errors import ServiceError
 
 from .models import FamilyMember
-from .serializers import FamilyMemberSerializer, can_see_phone
+from .serializers import PRIVATE_FIELDS, FamilyMemberSerializer, can_see_private
 
-# What a snapshot / field-level history may contain. Deliberately NOT phone or phone_public (private).
+# What a snapshot / field-level history may contain. Deliberately NOT phone, email or address (private).
 AUDIT_FIELDS = (
-    'first_name', 'last_name', 'gender', 'email', 'address', 'photo_url',
+    'first_name', 'last_name', 'gender', 'photo_url',
     'birth_date', 'birth_place', 'death_date', 'death_place', 'user',
 )
 FIELD_LABELS = {
@@ -78,9 +78,10 @@ def create_member(tree_id, data, actor, staff=False):
 def update_member(member, data, actor, staff=False):
     old_name = _name(member)
     before = snapshot(member)
-    if not can_see_phone(member, actor):
-        # Someone who cannot see a private number must not overwrite it or make it public.
-        data = {k: v for k, v in data.items() if k not in ('phone', 'phone_public')}
+    if not can_see_private(member, actor):
+        # Someone who cannot see private details must not overwrite them or make them public.
+        hidden = {name for pair in PRIVATE_FIELDS for name in pair}
+        data = {k: v for k, v in data.items() if k not in hidden}
     serializer = FamilyMemberSerializer(member, data=data, partial=True, context={'viewer': actor})
     if not serializer.is_valid():
         raise ServiceError(serializer.errors, 400)

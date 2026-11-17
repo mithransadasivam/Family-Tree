@@ -135,6 +135,20 @@ export const Venus = ({ size, ...p }: P) => (
     <path d="M12 14.5V21M8.5 18h7" />
   </svg>
 )
+export const Eye = ({ size, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+)
+/** Same eye with a slash through it: hidden. */
+export const EyeOff = ({ size, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+    <circle cx="12" cy="12" r="3" />
+    <path d="M4 4l16 16" />
+  </svg>
+)
 export const Mail = ({ size, ...p }: P) => (
   <svg {...base(size)} {...p}>
     <rect x="3" y="5" width="18" height="14" rx="2.5" />

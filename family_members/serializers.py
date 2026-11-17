@@ -3,11 +3,18 @@ from rest_framework import serializers
 from .models import FamilyMember
 
 
+def can_see_private(member, viewer):
+    """Private details are for the tree owner and the person themself (their linked account)."""
+    return viewer is not None and (member.tree.owner_id == viewer.id or member.user_id == viewer.id)
+
+
 def can_see_phone(member, viewer):
     """Public numbers are visible to the tree; private ones only to the tree owner and the person themself."""
-    if member.phone_public:
-        return True
-    return viewer is not None and (member.tree.owner_id == viewer.id or member.user_id == viewer.id)
+    return member.phone_public or can_see_private(member, viewer)
+
+
+# Each private detail and the eye flag that opens it up to the whole family.
+PRIVATE_FIELDS = (('phone', 'phone_public'), ('email', 'email_public'), ('address', 'address_public'))
 
 
 class FamilyMemberSerializer(serializers.ModelSerializer):
@@ -15,8 +22,11 @@ class FamilyMemberSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        if not can_see_phone(instance, self.context.get('viewer')):
-            data['phone'] = ''
+        viewer = self.context.get('viewer')
+        if not can_see_private(instance, viewer):
+            for field, flag in PRIVATE_FIELDS:
+                if not getattr(instance, flag):
+                    data[field] = ''
         return data
 
     def validate_tree(self, tree):
@@ -71,7 +81,7 @@ class FamilyMemberSerializer(serializers.ModelSerializer):
         model = FamilyMember
         fields = [
             'id', 'tree', 'user', 'first_name', 'last_name', 'gender',
-            'phone', 'phone_public', 'email', 'address', 'photo_url',
+            'phone', 'phone_public', 'email', 'email_public', 'address', 'address_public', 'photo_url',
             'birth_date', 'birth_place', 'death_date', 'death_place',
             'created_at', 'updated_at'
         ]

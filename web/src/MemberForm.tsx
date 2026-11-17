@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { FEMALE_TYPES, MALE_TYPES } from './graph'
+import EyeToggle from './EyeToggle'
 import { Mars, Venus } from './Icons'
 import { useCreatePerson, useRelationshipTypes, useSaveMember } from './queries'
 import { useTermPicker } from './TermPicker'
@@ -201,6 +202,10 @@ function EditForm({ treeId, member, onClose, onSaved }: Omit<Props, 'members' | 
     photo_url: member.photo_url,
     phone: member.phone,
     phone_public: member.phone_public,
+    email: member.email,
+    email_public: member.email_public,
+    address: member.address,
+    address_public: member.address_public,
   })
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setF((p) => ({ ...p, [k]: e.target.value }))
@@ -270,25 +275,52 @@ function EditForm({ treeId, member, onClose, onSaved }: Omit<Props, 'members' | 
               onChange={set('phone')}
               aria-label="Phone number"
             />
-            <div className="seg" role="group" aria-label="Who can see this number">
-              {([true, false] as const).map((pub) => (
-                <button
-                  key={String(pub)}
-                  type="button"
-                  className={f.phone_public === pub ? 'on' : ''}
-                  aria-pressed={f.phone_public === pub}
-                  onClick={() => setF((p) => ({ ...p, phone_public: pub }))}
-                >
-                  {pub ? 'Public' : 'Private'}
-                </button>
-              ))}
+            <EyeToggle
+              on={f.phone_public}
+              onChange={(v) => setF((p) => ({ ...p, phone_public: v }))}
+              label="phone number"
+            />
+          </div>
+        </div>
+        )}
+        {!staff && (
+          <div className="field">
+            <span>Email</span>
+            <div className="row wrap">
+              <input
+                className="grow"
+                type="email"
+                maxLength={254}
+                value={f.email}
+                onChange={set('email')}
+                aria-label="Email address"
+              />
+              <EyeToggle
+                on={f.email_public}
+                onChange={(v) => setF((p) => ({ ...p, email_public: v }))}
+                label="email address"
+              />
             </div>
           </div>
-          <span className="muted small hint">
-            Public: shown to the family, and to communities it is shared with. Private: only the family owner and this
-            person can see it.
-          </span>
-        </div>
+        )}
+        {!staff && (
+          <div className="field">
+            <span>Address</span>
+            <div className="row wrap">
+              <input className="grow" value={f.address} onChange={set('address')} aria-label="Address" />
+              <EyeToggle
+                on={f.address_public}
+                onChange={(v) => setF((p) => ({ ...p, address_public: v }))}
+                label="address"
+              />
+            </div>
+          </div>
+        )}
+        {!staff && (
+          <p className="muted small">
+            Open eye: shown to the family (and the phone also to communities the family is shared with). Slashed eye:
+            only the family owner and this person can see it.
+          </p>
         )}
         <p className="muted small">
           <Req />
