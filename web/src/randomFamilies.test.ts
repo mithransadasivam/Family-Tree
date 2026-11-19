@@ -7,6 +7,8 @@ import type { Member, Relationship } from './types'
  * Random family trees, thrown at the layout code. Part of the Groot run (groot/run_all.py): each
  * run uses a new seed, printed on failure, and GROOT_SEED=<n> replays one exactly.
  */
+// Provided by the test runner (Node); the website's own type settings do not include Node's types.
+declare const process: { env: Record<string, string | undefined> }
 const SEED = Number(process.env.GROOT_SEED) || Math.floor(Math.random() * 1e9)
 const ROUNDS = Math.min(Number(process.env.GROOT_ROUNDS) || 300, 400)
 

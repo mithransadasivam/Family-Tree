@@ -5,6 +5,7 @@ Groot: runs every check and prints one summary. Safe to run as often as you like
     python groot/run_all.py --quick    fewer random rounds
     python groot/run_all.py --seed 123 replay the exact random run another run printed
     python groot/run_all.py --live     also poke the live website with read-only requests
+    python groot/run_all.py --no-browser  skip the click-through tests in a real browser
 
 Nothing here touches your real data: the server checks use a throwaway in-memory database, the
 website checks are pure code, and the --live checks only read (and expect to be turned away).
@@ -70,6 +71,7 @@ def main():
     ap.add_argument('--quick', action='store_true')
     ap.add_argument('--live', action='store_true')
     ap.add_argument('--no-web', action='store_true')
+    ap.add_argument('--no-browser', action='store_true', help='skip the click-through tests in a real browser')
     ap.add_argument('--verbose', action='store_true', help='show the output of every check')
     args = ap.parse_args()
 
@@ -99,6 +101,30 @@ def main():
                 bad_outputs.append(('website tests', out))
             print(f'  {GREEN + "PASS" if ok else RED + "FAIL"}{END}  {"website tests":<24} {passed:>4} checks  {DIM}{secs:4.1f}s{END}')
 
+    if not args.no_web:
+        npx = shutil.which('npx') or shutil.which('npx.cmd')
+        if npx and os.path.isdir(os.path.join(ROOT, 'web', 'node_modules')):
+            code, out, secs = run([npx, 'tsc', '-b'], os.path.join(ROOT, 'web'), {}, 300)
+            results.append(('website builds', code == 0, 1 if code == 0 else 0, 0 if code == 0 else 1, secs))
+            if code != 0:
+                bad_outputs.append(('website builds (type check)', out[-1500:]))
+            print(f'  {GREEN + "PASS" if code == 0 else RED + "FAIL"}{END}  {"website builds":<24} {1 if code == 0 else 0:>4} checks  {DIM}{secs:4.1f}s{END}')
+
+    if not args.no_web and not args.no_browser:
+        code, out, secs = run([sys.executable, os.path.join(ROOT, 'groot', 'browser_run.py')], ROOT, {'PYTHONIOENCODING': 'utf-8'}, 900)
+        if out.lstrip().startswith('SKIP'):
+            print(f'  {DIM}skip  {out.strip()}{END}')
+        else:
+            passed = len(re.findall(r'^PASS ', out, re.M))
+            failed = re.findall(r'^FAIL (.*)$', out, re.M)
+            ok = code == 0 and not failed
+            results.append(('real screens', ok, passed, len(failed) or (0 if ok else 1), secs))
+            if not ok:
+                bad_outputs.append(('real screens (browser)', out))
+            elif args.verbose:
+                print(out)
+            print(f'  {GREEN + "PASS" if ok else RED + "FAIL"}{END}  {"real screens (browser)":<24} {passed:>4} checks  {DIM}{secs:4.1f}s{END}')
+
     if args.live:
         code, out, secs = run([sys.executable, os.path.join(ROOT, 'groot', 'live_smoke.py')], ROOT, {'PYTHONIOENCODING': 'utf-8'}, 120)
         passed = len(re.findall(r'^PASS ', out, re.M))
@@ -117,7 +143,7 @@ def main():
     else:
         print(f'{RED}{len(failures)} group(s) failed.{END} Details:\n')
         for name, out in bad_outputs:
-            lines = [l for l in out.splitlines() if l.startswith(('FAIL', 'Traceback', 'AssertionError', '  File')) or 'Error' in l or 'seed' in l.lower()]
+            lines = [l for l in out.splitlines() if l.startswith(('FAIL', '     ', 'Traceback', 'AssertionError', '  File')) or 'Error' in l or 'seed' in l.lower()]
             print(f'--- {name}')
             print('\n'.join(lines[-25:]) or out[-1500:])
         print(f'\nReplay: python groot/run_all.py --seed {seed}')

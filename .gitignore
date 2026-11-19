@@ -26,3 +26,6 @@ local.properties
 *.jks
 *.keystore
 /app/release/
+
+# Groot output (screenshots)
+groot/reports/
