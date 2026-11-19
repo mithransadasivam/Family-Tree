@@ -8,6 +8,7 @@ from users.models import User
 from django.utils import timezone
 from datetime import timedelta
 from utils.notify import email_owner, site_link
+from utils.text import clean
 from utils.throttles import CommunityFindThrottle, CommunitySearchThrottle
 from .models import Community, CommunityJoinRequest, CommunityMember, CommunityTree
 from .search import search_people
@@ -65,8 +66,8 @@ class CommunityListView(APIView):
 
     def post(self, request):
         user = current_user(request)
-        name = (request.data.get('name') or '').strip()
-        description = (request.data.get('description') or '').strip()
+        name = clean(request.data.get('name'))
+        description = clean(request.data.get('description'))
         if not 2 <= len(name) <= 120:
             return err('Give the community a name (2 to 120 characters)')
         if len(description) > 500:
@@ -125,12 +126,12 @@ class CommunityDetailView(APIView):
         if mem.role != 'owner':
             return err('Only the owner can edit the community', status.HTTP_403_FORBIDDEN)
         if 'name' in request.data:
-            name = (request.data.get('name') or '').strip()
+            name = clean(request.data.get('name'))
             if not 2 <= len(name) <= 120:
                 return err('Give the community a name (2 to 120 characters)')
             community.name = name
         if 'description' in request.data:
-            description = (request.data.get('description') or '').strip()
+            description = clean(request.data.get('description'))
             if len(description) > 500:
                 return err('The description can be at most 500 characters')
             community.description = description
@@ -164,7 +165,7 @@ class CommunityJoinView(APIView):
                 community=community, requester=user, status='rejected',
                 created_at__gte=timezone.now() - timedelta(days=1)).exists():
             return err('Your last request was declined. You can ask again tomorrow.')
-        message = (request.data.get('message') or '').strip()[:300]
+        message = clean(request.data.get('message'))[:300]
         tree = None
         if request.data.get('tree_id') not in (None, ''):
             tree = FamilyTree.objects.filter(id=request.data.get('tree_id'), owner=user, is_active=True).first()

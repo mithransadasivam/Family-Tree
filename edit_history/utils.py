@@ -4,6 +4,13 @@ import logging
 from .models import EditHistory
 
 STAFF_PREFIX = 'Staff edit: '
+
+
+def display_name(user):
+    """How a person is named in the history. Never their email: everyone in the family can read this."""
+    name = f'{user.first_name} {user.last_name}'.strip()
+    return name or 'A family member'
+
 staff_log = logging.getLogger('kinship.staff')
 
 

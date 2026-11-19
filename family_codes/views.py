@@ -8,7 +8,8 @@ from rest_framework import status
 from .models import FamilyCode
 from family_trees.models import FamilyTree, TreeMember
 from users.models import User
-from edit_history.utils import log_edit
+from edit_history.utils import log_edit, display_name
+from utils.text import clean
 from utils.throttles import CodeAttemptThrottle
 
 
@@ -53,7 +54,7 @@ class RedeemCodeView(APIView):
 
     def post(self, request):
         user = get_current_user(request)
-        code = request.data.get('code', '').upper().strip()
+        code = clean(request.data.get('code')).upper()
         # One transaction with the code row locked, so a single-use code can't be consumed twice
         # by simultaneous requests.
         with transaction.atomic():
@@ -82,7 +83,7 @@ class RedeemCodeView(APIView):
             family_code.used_by = user
             family_code.used_at = timezone.now()
             family_code.save()
-            log_edit(tree, 'tree_member', user.id, user, f'{user.email} joined via code {code}')
+            log_edit(tree, 'tree_member', user.id, user, f'{display_name(user)} joined via code {code}')
         from family_trees.serializers import FamilyTreeSerializer
         return Response({
             'message': f'Successfully joined {tree.tree_name}',

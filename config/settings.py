@@ -79,6 +79,7 @@ DATABASES = {
 }
 
 REST_FRAMEWORK = {
+    'EXCEPTION_HANDLER': 'utils.exceptions.exception_handler',
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'users.authentication.CookieJWTAuthentication',
     ),

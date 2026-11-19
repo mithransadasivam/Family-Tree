@@ -8,7 +8,8 @@ from .serializers import JoinRequestSerializer
 from family_codes.models import FamilyCode
 from family_trees.models import FamilyTree, TreeMember
 from users.models import User
-from edit_history.utils import log_edit
+from edit_history.utils import log_edit, display_name
+from utils.text import clean
 from utils.notify import email_owner, site_link
 from utils.throttles import CodeAttemptThrottle
 
@@ -39,7 +40,7 @@ class JoinRequestListCreateView(APIView):
 
     def post(self, request):
         user = get_current_user(request)
-        code = request.data.get('code', '').upper().strip()
+        code = clean(request.data.get('code')).upper()
         message = request.data.get('message', '')
         # One transaction, with the code row locked: two people submitting the same single-use
         # code at once can no longer both see it as unused and both get in.
@@ -72,7 +73,7 @@ class JoinRequestListCreateView(APIView):
                     tree=tree, requester=user, status='approved',
                     message=message, family_code_used=family_code
                 )
-                log_edit(tree, 'tree_member', user.id, user, f'{user.email} auto-joined via code {code}')
+                log_edit(tree, 'tree_member', user.id, user, f'{display_name(user)} auto-joined via code {code}')
                 return Response({
                     'auto_approved': True,
                     'message': f'Successfully joined {tree.tree_name}',
@@ -83,7 +84,7 @@ class JoinRequestListCreateView(APIView):
                 tree=tree, requester=user, status='pending',
                 message=message, family_code_used=family_code
             )
-            log_edit(tree, 'join_request', join_request.id, user, f'{user.email} requested to join via code {code}')
+            log_edit(tree, 'join_request', join_request.id, user, f'{display_name(user)} requested to join via code {code}')
         who = f'{user.first_name} {user.last_name}'.strip() or user.email
         email_owner(
             tree.owner,
@@ -155,7 +156,7 @@ class JoinRequestDetailView(APIView):
 
             log_edit(
                 join_request.tree, 'join_request', join_request.id, user,
-                f'{new_status.capitalize()} join request from {join_request.requester.email}'
+                f'{new_status.capitalize()} join request from {display_name(join_request.requester)}'
             )
         return Response(JoinRequestSerializer(join_request).data)
 

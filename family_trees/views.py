@@ -4,7 +4,7 @@ from rest_framework import status
 from .models import FamilyTree, TreeMember
 from .serializers import FamilyTreeSerializer
 from users.models import User
-from edit_history.utils import log_edit
+from edit_history.utils import log_edit, display_name
 
 
 def get_current_user(request):
@@ -89,5 +89,5 @@ class LeaveTreeView(APIView):
         if membership.role == 'owner':
             return Response({'error': 'The tree owner cannot leave the tree'}, status=status.HTTP_400_BAD_REQUEST)
         membership.delete()
-        log_edit(tree, 'tree_member', user.id, user, f'{user.email} left the tree')
+        log_edit(tree, 'tree_member', user.id, user, f'{display_name(user)} left the tree')
         return Response({'message': f'You have left {tree.tree_name}'}, status=status.HTTP_200_OK)
