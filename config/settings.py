@@ -117,8 +117,11 @@ CORS_ALLOW_CREDENTIALS = True  # lets the browser send the auth cookies
 # Where links in emails point. Set SITE_URL to the public address (e.g. https://kinship-family.netlify.app).
 SITE_URL = os.getenv('SITE_URL', '').rstrip('/') or (WEB_ORIGINS[0] if WEB_ORIGINS else '')
 
-# Join-request emails go out over SMTP once EMAIL_HOST_USER and EMAIL_HOST_PASSWORD are set
-# (for Gmail, an "app password"). Until then nothing is sent; in development they print to the console.
+# Join-request emails. On Railway the usual mail ports are blocked, so the live site sends through Brevo's
+# web API: set BREVO_API_KEY, and send from an address verified in Brevo (EMAIL_HOST_USER or DEFAULT_FROM_EMAIL).
+# Plain SMTP (EMAIL_HOST_USER + EMAIL_HOST_PASSWORD) still works where the ports are open. Until one is set
+# nothing is sent; in development emails print to the console.
+BREVO_API_KEY = os.getenv('BREVO_API_KEY', '')
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
 EMAIL_USE_TLS = True
@@ -126,7 +129,9 @@ EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 EMAIL_TIMEOUT = 10
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', f'Kinship <{EMAIL_HOST_USER}>' if EMAIL_HOST_USER else 'Kinship <no-reply@localhost>')
-if EMAIL_HOST_PASSWORD:
+if BREVO_API_KEY:
+    EMAIL_BACKEND = 'utils.brevo_backend.BrevoEmailBackend'
+elif EMAIL_HOST_PASSWORD:
     EMAIL_BACKEND = 'utils.mail_backend.IPv4EmailBackend'
 elif DEBUG:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
