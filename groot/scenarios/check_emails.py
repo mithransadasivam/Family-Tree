@@ -1,5 +1,5 @@
 import os, time
-os.environ['DJANGO_SETTINGS_MODULE'] = 'qa.settings'
+os.environ['DJANGO_SETTINGS_MODULE'] = 'groot.settings'
 import django; django.setup()
 from unittest import mock
 from django.conf import settings

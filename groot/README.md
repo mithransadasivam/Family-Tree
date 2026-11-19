@@ -1,17 +1,19 @@
-# Kinship QA
+# Groot
+
+Groot is for the **website only**: it checks the website and the server code the website talks to. It never touches, builds or tests the Android app.
 
 One command runs every check and prints a summary. It is safe to run as often as you like: the
 server checks use a throwaway in-memory database, the website checks are pure code, and the
 optional `--live` checks only read from the real site.
 
 ```
-python qa/run_all.py              everything (about a minute)
-python qa/run_all.py --quick      fewer random rounds (about 20 seconds)
-python qa/run_all.py --live       also poke the live website (read-only)
-python qa/run_all.py --seed 123   replay the exact random run another run printed
+python groot/run_all.py              everything (about a minute)
+python groot/run_all.py --quick      fewer random rounds (about 20 seconds)
+python groot/run_all.py --live       also poke the live website (read-only)
+python groot/run_all.py --seed 123   replay the exact random run another run printed
 ```
 
-On Windows you can also double-click `qa/run_qa.bat`.
+On Windows you can also double-click `groot/groot.bat`.
 
 ## What it covers
 
@@ -28,5 +30,5 @@ On Windows you can also double-click `qa/run_qa.bat`.
 
 Every random run prints its seed. If a run fails, re-run with that seed to see the same failure.
 
-Add a new check by dropping a script in `qa/scenarios/` named `check_<something>.py`: print
+Add a new check by dropping a script in `groot/scenarios/` named `check_<something>.py`: print
 `PASS ...` or `FAIL ...` lines and exit non-zero on failure (see an existing one for the setup).

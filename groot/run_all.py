@@ -1,10 +1,10 @@
 """
-Kinship QA: runs every check and prints one summary. Safe to run as often as you like.
+Groot: runs every check and prints one summary. Safe to run as often as you like.
 
-    python qa/run_all.py            everything (server scenarios + fuzzer + website tests)
-    python qa/run_all.py --quick    fewer random rounds
-    python qa/run_all.py --seed 123 replay the exact random run another run printed
-    python qa/run_all.py --live     also poke the live website with read-only requests
+    python groot/run_all.py            everything (server scenarios + fuzzer + website tests)
+    python groot/run_all.py --quick    fewer random rounds
+    python groot/run_all.py --seed 123 replay the exact random run another run printed
+    python groot/run_all.py --live     also poke the live website with read-only requests
 
 Nothing here touches your real data: the server checks use a throwaway in-memory database, the
 website checks are pure code, and the --live checks only read (and expect to be turned away).
@@ -19,7 +19,7 @@ import sys
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SCENARIOS = os.path.join(ROOT, 'qa', 'scenarios')
+SCENARIOS = os.path.join(ROOT, 'groot', 'scenarios')
 GREEN, RED, DIM, END = '\033[32m', '\033[31m', '\033[2m', '\033[0m'
 if not sys.stdout.isatty():
     GREEN = RED = DIM = END = ''
@@ -39,11 +39,11 @@ def run(cmd, cwd, env=None, timeout=900):
 
 def server_script(name, seed, rounds):
     env = {
-        'DJANGO_SETTINGS_MODULE': 'qa.settings',
+        'DJANGO_SETTINGS_MODULE': 'groot.settings',
         'PYTHONPATH': ROOT,
         'PYTHONIOENCODING': 'utf-8',
-        'QA_SEED': str(seed),
-        'QA_ROUNDS': str(rounds),
+        'GROOT_SEED': str(seed),
+        'GROOT_ROUNDS': str(rounds),
     }
     code, out, secs = run([sys.executable, os.path.join(SCENARIOS, name)], ROOT, env)
     passed = len(re.findall(r'^PASS ', out, re.M))
@@ -57,7 +57,7 @@ def web_tests(seed, rounds):
     npx = shutil.which('npx') or shutil.which('npx.cmd')
     if not npx or not os.path.isdir(os.path.join(web, 'node_modules')):
         return None
-    code, out, secs = run([npx, 'vitest', 'run'], web, {'QA_SEED': str(seed), 'QA_ROUNDS': str(rounds)}, 600)
+    code, out, secs = run([npx, 'vitest', 'run'], web, {'GROOT_SEED': str(seed), 'GROOT_ROUNDS': str(rounds)}, 600)
     m = re.search(r'Tests\s+(?:(\d+) failed \| )?(\d+) passed', out)
     failed = int(m.group(1) or 0) if m else 1
     passed = int(m.group(2)) if m else 0
@@ -75,7 +75,7 @@ def main():
 
     seed = args.seed if args.seed is not None else random.SystemRandom().randrange(1, 10**9)
     rounds = 150 if args.quick else 600
-    print(f'Kinship QA  (random seed {seed}; replay with: python qa/run_all.py --seed {seed})\n')
+    print(f'Groot  (random seed {seed}; replay with: python groot/run_all.py --seed {seed})\n')
 
     results, bad_outputs = [], []
     scripts = sorted(f for f in os.listdir(SCENARIOS) if f.endswith('.py') and not f.startswith('_'))
@@ -100,7 +100,7 @@ def main():
             print(f'  {GREEN + "PASS" if ok else RED + "FAIL"}{END}  {"website tests":<24} {passed:>4} checks  {DIM}{secs:4.1f}s{END}')
 
     if args.live:
-        code, out, secs = run([sys.executable, os.path.join(ROOT, 'qa', 'live_smoke.py')], ROOT, {'PYTHONIOENCODING': 'utf-8'}, 120)
+        code, out, secs = run([sys.executable, os.path.join(ROOT, 'groot', 'live_smoke.py')], ROOT, {'PYTHONIOENCODING': 'utf-8'}, 120)
         passed = len(re.findall(r'^PASS ', out, re.M))
         failed = re.findall(r'^FAIL (.*)$', out, re.M)
         ok = code == 0 and not failed
@@ -120,7 +120,7 @@ def main():
             lines = [l for l in out.splitlines() if l.startswith(('FAIL', 'Traceback', 'AssertionError', '  File')) or 'Error' in l or 'seed' in l.lower()]
             print(f'--- {name}')
             print('\n'.join(lines[-25:]) or out[-1500:])
-        print(f'\nReplay: python qa/run_all.py --seed {seed}')
+        print(f'\nReplay: python groot/run_all.py --seed {seed}')
     return 1 if failures else 0
 
 

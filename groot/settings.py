@@ -1,4 +1,4 @@
-"""Settings for the QA checks: a throwaway in-memory database, so nothing real is ever touched."""
+"""Settings for the Groot checks: a throwaway in-memory database, so nothing real is ever touched."""
 from config.settings import *  # noqa: F401,F403
 
 DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}

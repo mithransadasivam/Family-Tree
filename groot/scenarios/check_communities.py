@@ -1,5 +1,5 @@
 import os
-os.environ['DJANGO_SETTINGS_MODULE'] = 'qa.settings'
+os.environ['DJANGO_SETTINGS_MODULE'] = 'groot.settings'
 import django; django.setup()
 from datetime import date
 from django.core.management import call_command

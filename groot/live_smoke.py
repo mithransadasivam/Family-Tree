@@ -2,7 +2,7 @@
 Read-only checks against the LIVE website. Nothing here signs in, creates or changes anything: it
 only asks for pages and expects the server to turn anonymous requests away properly.
 
-    python qa/live_smoke.py
+    python groot/live_smoke.py
 """
 import json
 import re

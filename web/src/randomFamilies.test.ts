@@ -4,11 +4,11 @@ import { buildForest, classify, inferGenders, type Unit } from './graph'
 import type { Member, Relationship } from './types'
 
 /**
- * Random family trees, thrown at the layout code. Part of the Kinship QA run (qa/run_all.py): each
- * run uses a new seed, printed on failure, and QA_SEED=<n> replays one exactly.
+ * Random family trees, thrown at the layout code. Part of the Groot run (groot/run_all.py): each
+ * run uses a new seed, printed on failure, and GROOT_SEED=<n> replays one exactly.
  */
-const SEED = Number(process.env.QA_SEED) || Math.floor(Math.random() * 1e9)
-const ROUNDS = Math.min(Number(process.env.QA_ROUNDS) || 300, 400)
+const SEED = Number(process.env.GROOT_SEED) || Math.floor(Math.random() * 1e9)
+const ROUNDS = Math.min(Number(process.env.GROOT_ROUNDS) || 300, 400)
 
 // Small seeded random numbers, so a failing run can be replayed.
 function rng(seed: number) {

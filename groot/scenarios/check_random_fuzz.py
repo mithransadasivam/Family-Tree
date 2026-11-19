@@ -1,7 +1,7 @@
 """
 Random fuzzer: hammers the real API with thousands of odd requests from several users and, as it
 goes, checks rules that must ALWAYS hold. Each run uses a new random seed (printed), so running it
-again explores different situations; QA_SEED=<n> replays one exactly.
+again explores different situations; GROOT_SEED=<n> replays one exactly.
 
 What it checks:
   * the server never answers 5xx, whatever nonsense it is sent
@@ -35,8 +35,8 @@ from relationships.rules import ancestor_edge  # noqa: E402
 from users.models import User  # noqa: E402
 from users.views import get_tokens_for_user  # noqa: E402
 
-SEED = int(os.environ.get('QA_SEED') or random.SystemRandom().randrange(1, 10**9))
-ROUNDS = int(os.environ.get('QA_ROUNDS') or 600)
+SEED = int(os.environ.get('GROOT_SEED') or random.SystemRandom().randrange(1, 10**9))
+ROUNDS = int(os.environ.get('GROOT_ROUNDS') or 600)
 rng = random.Random(SEED)
 
 failures, op_log = [], []
