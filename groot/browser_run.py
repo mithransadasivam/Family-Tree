@@ -9,6 +9,7 @@ person would, on a throwaway copy of the server that exists only on this compute
 
 Run alone:  python groot/browser_run.py   (screenshots land in groot/reports/)
 """
+import glob
 import os
 import shutil
 import socket
@@ -49,8 +50,11 @@ def main():
         print('SKIP browser tests need Microsoft Edge or Google Chrome installed')
         return 0
 
+    for old in glob.glob(os.path.join(tempfile.gettempdir(), 'groot_*')):  # leftovers from an interrupted run
+        shutil.rmtree(old, ignore_errors=True)
     work = tempfile.mkdtemp(prefix='groot_')
     server = None
+    log = None
     try:
         site = os.path.join(work, 'site')
         build = subprocess.run([npx, 'vite', 'build', '--outDir', site, '--emptyOutDir'], cwd=WEB, capture_output=True,
@@ -93,7 +97,13 @@ def main():
                 server.wait(10)
             except subprocess.TimeoutExpired:
                 server.kill()
-        shutil.rmtree(work, ignore_errors=True)  # the dummy data is gone for good
+        if log:
+            log.close()
+        for _ in range(10):  # Windows can hold a file for a moment after its program exits
+            shutil.rmtree(work, ignore_errors=True)
+            if not os.path.exists(work):
+                break
+            time.sleep(0.5)  # the dummy data is gone for good
 
 
 if __name__ == '__main__':
