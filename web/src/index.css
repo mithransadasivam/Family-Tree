@@ -1610,27 +1610,6 @@ input[type='checkbox']:checked::after {
   }
 }
 
-/* Very small phones: five top-bar buttons plus the name do not fit, so the bar tightens up. */
-@media (max-width: 420px) {
-  .topbar {
-    padding-inline: 8px;
-  }
-  .topbar-actions {
-    gap: 4px;
-  }
-  .logo {
-    gap: 6px;
-  }
-  .logo-word {
-    font-size: 1.1rem;
-  }
-}
-@media (max-width: 370px) {
-  .logo-word {
-    display: none;
-  }
-}
-
 /* Inputs inside two-column rows must be allowed to shrink with the card. */
 .field {
   min-width: 0;

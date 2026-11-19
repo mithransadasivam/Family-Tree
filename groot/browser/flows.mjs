@@ -366,32 +366,7 @@ await step('a stranger cannot read the community', async () => {
   expect(r.status === 404, `expected 404 for a non-member, got ${r.status}`)
 }, outsider)
 
-// ─────────────────────────────────────────────────────────────── small screens and sign-out
-const phone = await person('owner', { width: 360, height: 800 })
-await step('on a small phone screen (360px wide) nothing slides sideways', async () => {
-  for (const p of ['/', '/profile', '/communities', `/communities/${communityId}`]) {
-    await phone.goto(URL + p, { waitUntil: 'networkidle' })
-    const over = await phone.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
-    if (over > 1) {
-      const who = await phone.evaluate(() =>
-        [...document.querySelectorAll('body *')]
-          .filter((el) => {
-            if (el.getBoundingClientRect().right <= window.innerWidth + 1) return false
-            for (let a = el.parentElement; a && a !== document.documentElement; a = a.parentElement) {
-              const o = getComputedStyle(a)
-              if (o.overflowX !== 'visible' || o.position === 'fixed') return false // clipped, or not part of the page flow
-            }
-            return getComputedStyle(el).position !== 'fixed'
-          })
-          .slice(0, 4)
-          .map((el) => `${el.tagName.toLowerCase()}.${String(el.className).split(' ')[0]} (${Math.round(el.getBoundingClientRect().right)}px)`),
-      )
-      throw new Error(`${p} is ${over}px wider than the screen. Wide parts: ${who.join(', ')}`)
-    }
-  }
-  await shot(phone, 'phone-community')
-}, phone)
-
+// ─────────────────────────────────────────────────────────────── sign-out
 await step('the profile menu signs you out', async () => {
   await outsider.goto(URL + '/', { waitUntil: 'networkidle' })
   await outsider.locator('.menu-wrap button').first().click()

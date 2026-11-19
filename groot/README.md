@@ -1,6 +1,6 @@
 # Groot
 
-Groot is for the **website only**: it checks the website and the server code the website talks to. It never touches, builds or tests the Android app.
+Groot is for the **website on a computer only** (phones are not checked for now): it checks the website and the server code the website talks to. It never touches, builds or tests the Android app.
 
 One command runs every check and prints a summary. It is safe to run as often as you like: the
 server checks use a throwaway in-memory database, the website checks are pure code, and the
@@ -27,7 +27,7 @@ On Windows you can also double-click `groot/groot.bat`.
 | private details | the eye buttons: email, phone and address stay hidden unless turned on |
 | random fuzz | thousands of random, often nonsensical, requests from several users, while checking that the server never errors, links never cross families / double up / loop, private values never leak, strangers stay locked out |
 | website tests | the tree layout and labels, including random families shuffled in every order |
-| real screens (browser) | opens the real website in a headless Edge/Chrome and clicks through it like a person: creates a dummy "Groot Test Family", adds people, edits details and eyes, joins by code, communities (join with a family, approve, search), privacy from another account's point of view, phone-sized screens, sign-out. Takes screenshots into `groot/reports/` |
+| real screens (browser) | opens the real website in a headless Edge/Chrome and clicks through it like a person: creates a dummy "Groot Test Family", adds people, edits details and eyes, joins by code, communities (join with a family, approve, search), privacy from another account's point of view, sign-out. Takes screenshots into `groot/reports/` |
 | live site (`--live`) | the real site loads, both addresses match, and every private page turns anonymous visitors away |
 
 Every random run prints its seed. If a run fails, re-run with that seed to see the same failure.
